@@ -5,15 +5,15 @@ import { ImageData, GenerationSettings, GroundingChunk } from "../types";
 const MAX_RETRIES = 2;
 const INITIAL_BACKOFF = 2000;
 
-const SYSTEM_INSTRUCTION = `Вы — высокоточный движок пространственного интеллекта. Ваша задача: выполнить техническую реконструкцию исходного изображения на основе предоставленной телеметрии камеры.
+const SYSTEM_INSTRUCTION = `You are a high-end spatial intelligence and image synthesis engine. 
+YOUR PRIMARY GOAL: Generate a NEW image based on the source image and provided camera telemetry.
 
-ПРАВИЛА ОБРАБОТКИ:
-1. Описание (RU): Сначала предоставьте краткий технический анализ новой геометрии сцены, освещения и перспективы.
-2. Синтез: Создайте НОВОЕ изображение, точно соответствующее перемещению камеры.
-3. IDENTITY LOCK: Запрещено изменять костную структуру лица, цвет глаз или этническую принадлежность. Личность должна быть 100% узнаваема.
-4. ОПТИКА: Имитируйте физические свойства линз (дисторсия краев для 14mm, сжатие планов для 85mm).
-5. КАЧЕСТВО: Устраните шумы, восстановите микро-текстуры кожи и волос.
-6. Выходное изображение должно быть строго 1:1.`;
+CRITICAL CONSTRAINTS:
+1. OUTPUT: You must synthesize the image first.
+2. IDENTITY: Maintain the exact face structure, skin texture, and eye color. The person must be 100% recognizable.
+3. OPTICS: Apply realistic lens effects (e.g., edge distortion for 14mm, compression for 85mm).
+4. ANALYSIS (RU): Provide a very brief technical analysis of the new perspective AFTER the image generation or as a separate part.
+5. FORMAT: Strictly 1:1 aspect ratio.`;
 
 export class GeminiService {
   private async sleep(ms: number) {
@@ -28,7 +28,6 @@ export class GeminiService {
   ): Promise<{ imageUrl?: string; modelResponse?: string; groundingChunks?: GroundingChunk[] }> {
     let lastError: any;
     
-    // Create fresh instance to pick up latest API key
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const isPro = settings.quality === 'pro';
     const modelName = isPro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
@@ -43,11 +42,12 @@ export class GeminiService {
         };
 
         const textPart = {
-          text: `[RECONSTRUCTION_TASK]
-TELEMETRY: ${cameraPrompt}
-ENGINE_SEED: ${settings.seed}
-ENVIRONMENT_BIAS: ${settings.creativeContext || "Cinematic Studio Lighting"}
-OUTPUT_MODE: HIGH_FIDELITY_SPATIAL_SYNC`
+          text: `[RENDER_COMMAND]
+SOURCE_LOCK: TRUE
+CAMERA_TELEMETRY: ${cameraPrompt}
+SEED: ${settings.seed}
+STYLE_BIAS: ${settings.creativeContext || "Professional Studio Photography"}
+EXECUTION: SYNTHESIZE_NOW`
         };
 
         const config: any = {
@@ -58,7 +58,6 @@ OUTPUT_MODE: HIGH_FIDELITY_SPATIAL_SYNC`
           systemInstruction: SYSTEM_INSTRUCTION
         };
 
-        // Google Search is only available for Gemini 3 Pro
         if (isPro) {
           config.tools = [{ googleSearch: {} }];
         }
@@ -92,25 +91,18 @@ OUTPUT_MODE: HIGH_FIDELITY_SPATIAL_SYNC`
       } catch (error: any) {
         lastError = error;
         const msg = error.message?.toLowerCase() || '';
-        
-        // Handle rate limits with backoff
-        const isRateLimit = msg.includes("429") || msg.includes("quota");
-        if (isRateLimit && attempt < MAX_RETRIES - 1) {
+        if ((msg.includes("429") || msg.includes("quota")) && attempt < MAX_RETRIES - 1) {
           const waitTime = INITIAL_BACKOFF * (attempt + 1);
           if (onRetry) onRetry(Math.ceil(waitTime / 1000));
           await this.sleep(waitTime);
           continue;
         }
-
-        // Special handling for Key errors to trigger re-selection in App component
         if (msg.includes("not found") || msg.includes("api key") || msg.includes("authentication")) {
           throw new Error("AUTH_REQUIRED");
         }
-
         break;
       }
     }
-
     throw lastError;
   }
 }

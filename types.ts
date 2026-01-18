@@ -60,15 +60,14 @@ export interface PresetDefinition {
   description: string;
 }
 
-// FIX: Renamed interface to AIStudio to match existing global type declarations and avoid type collision.
-export interface AIStudio {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
-}
-
+// FIX: Moved AIStudio interface into declare global to resolve type collision with global Window augmentation.
 declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
   interface Window {
-    // FIX: Updated to type AIStudio to satisfy TS compiler requirement for global Window augmentation.
     aistudio?: AIStudio;
   }
 }
