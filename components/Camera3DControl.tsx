@@ -53,11 +53,11 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     if (!containerRef.current) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a0a);
+    scene.background = new THREE.Color(0x060606);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(40, containerRef.current.clientWidth / containerRef.current.clientHeight, 0.1, 1000);
-    camera.position.set(15, 12, 15);
+    camera.position.set(16, 14, 16);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
@@ -68,20 +68,20 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     rendererRef.current = renderer;
 
     // Grid
-    const grid = new THREE.GridHelper(30, 20, 0x222222, 0x111111);
+    const grid = new THREE.GridHelper(30, 20, 0x333333, 0x111111);
     scene.add(grid);
 
     // Photo Plane
     const photoGeo = new THREE.PlaneGeometry(4, 5.5);
-    const photoMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+    const photoMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
     const photoPlane = new THREE.Mesh(photoGeo, photoMat);
     scene.add(photoPlane);
     photoPlaneRef.current = photoPlane;
 
     // Camera Model
     const cameraGroup = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.9), new THREE.MeshStandardMaterial({ color: 0x1a2b3c }));
-    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 0.6, 32), new THREE.MeshStandardMaterial({ color: 0x050505 }));
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.9), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.7, 32), new THREE.MeshStandardMaterial({ color: 0x111111 }));
     lens.rotation.x = Math.PI / 2;
     lens.position.z = 0.6;
     cameraGroup.add(body, lens);
@@ -91,7 +91,7 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     // Arcs Construction
     const createArc = (color: number) => {
       const geometry = new THREE.BufferGeometry();
-      const material = new THREE.LineBasicMaterial({ color, linewidth: 3 });
+      const material = new THREE.LineBasicMaterial({ color, linewidth: 2, transparent: true, opacity: 0.5 });
       return new THREE.Line(geometry, material);
     };
 
@@ -100,15 +100,15 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     const distLine = createArc(0xffaa00); scene.add(distLine); distanceLineRef.current = distLine;
 
     // Nodes
-    const createNode = (color: number) => new THREE.Mesh(new THREE.SphereGeometry(0.4, 32, 32), new THREE.MeshBasicMaterial({ color }));
+    const createNode = (color: number) => new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshBasicMaterial({ color }));
     const rotNode = createNode(0x00ffcc); scene.add(rotNode); rotationNodeRef.current = rotNode;
     const tNode = createNode(0xff66cc); scene.add(tNode); tiltNodeRef.current = tNode;
     const distNode = createNode(0xffcc00); scene.add(distNode); distanceNodeRef.current = distNode;
 
     // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-    const pointLight = new THREE.PointLight(0xffffff, 1.5);
-    pointLight.position.set(10, 10, 10);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const pointLight = new THREE.PointLight(0xffffff, 2);
+    pointLight.position.set(10, 20, 10);
     scene.add(pointLight);
 
     let isDragging = false;
@@ -142,71 +142,71 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
   }, [onChange]);
 
   useEffect(() => {
-    if (!modelCameraRef.current) return;
+    if (!modelCameraRef.current || !photoPlaneRef.current) return;
 
     const angle = THREE.MathUtils.degToRad(state.rotate);
-    const dist = 10 - state.forward * 0.6;
-    const camY = state.tilt * 6;
+    const dist = 10 - state.forward * 0.7;
+    const camY = state.tilt * 7;
     
     // Position Camera
     modelCameraRef.current.position.set(Math.sin(angle) * dist, camY, Math.cos(angle) * dist);
-    modelCameraRef.current.lookAt(0, 0, 0);
+    modelCameraRef.current.lookAt(0, state.floating ? 2.5 : 0, 0);
+
+    // Apply Floating Visuals
+    const targetY = state.floating ? 2.5 : 0;
+    photoPlaneRef.current.position.y = THREE.MathUtils.lerp(photoPlaneRef.current.position.y, targetY, 0.1);
 
     // Update Rotation Arc (Cyan)
     const rotPoints = [];
     for(let i = -90; i <= 90; i+=2) {
       const a = THREE.MathUtils.degToRad(i);
-      rotPoints.push(new THREE.Vector3(Math.sin(a) * 8, 0, Math.cos(a) * 8));
+      rotPoints.push(new THREE.Vector3(Math.sin(a) * 8.5, 0, Math.cos(a) * 8.5));
     }
     rotationArcRef.current?.geometry.setFromPoints(rotPoints);
-    rotationNodeRef.current?.position.set(Math.sin(angle) * 8, 0, Math.cos(angle) * 8);
+    rotationNodeRef.current?.position.set(Math.sin(angle) * 8.5, 0, Math.cos(angle) * 8.5);
 
     // Update Tilt Arc (Pink)
     const tiltPoints = [];
     for(let i = -1; i <= 1; i+=0.1) {
       const a = THREE.MathUtils.degToRad(state.rotate);
-      tiltPoints.push(new THREE.Vector3(Math.sin(a) * dist, i * 6, Math.cos(a) * dist));
+      tiltPoints.push(new THREE.Vector3(Math.sin(a) * dist, i * 7, Math.cos(a) * dist));
     }
     tiltArcRef.current?.geometry.setFromPoints(tiltPoints);
-    tiltNodeRef.current?.position.copy(modelCameraRef.current.position).multiplyScalar(0.9);
-    
-    if (tiltNodeRef.current) {
-      tiltNodeRef.current.position.y = camY;
-    }
+    tiltNodeRef.current?.position.copy(modelCameraRef.current.position).multiplyScalar(0.95);
+    if (tiltNodeRef.current) tiltNodeRef.current.position.y = camY;
 
     // Update Distance Line (Orange)
-    distanceLineRef.current?.geometry.setFromPoints([new THREE.Vector3(0,0,0), modelCameraRef.current.position]);
-    distanceNodeRef.current?.position.copy(modelCameraRef.current.position).multiplyScalar(0.6);
+    distanceLineRef.current?.geometry.setFromPoints([new THREE.Vector3(0, targetY, 0), modelCameraRef.current.position]);
+    distanceNodeRef.current?.position.copy(modelCameraRef.current.position).multiplyScalar(0.5);
 
   }, [state]);
 
   return (
-    <div className="relative w-full h-full bg-[#0a0a0a] rounded-3xl overflow-hidden border border-white/5 shadow-2xl">
+    <div className="relative w-full h-full bg-[#060606] rounded-3xl overflow-hidden border border-white/5 shadow-2xl">
       <div ref={containerRef} className="w-full h-full cursor-move" />
       
-      {/* Legend Overlay */}
       <div className="absolute top-6 left-6 pointer-events-none">
-        <div className="bg-black/80 backdrop-blur-xl p-4 rounded-2xl border border-white/10 space-y-3">
+        <div className="bg-black/60 backdrop-blur-xl p-4 rounded-2xl border border-white/10 space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#00ffcc]" />
-            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Rotation (↔)</span>
+            <div className="w-2 h-2 rounded-full bg-[#00ffcc]" />
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Rotation Axis</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#ff66cc]" />
-            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Vertical Tilt (↕)</span>
+            <div className="w-2 h-2 rounded-full bg-[#ff66cc]" />
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Vertical Pitch</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#ffaa00]" />
-            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Distance/Zoom</span>
+            <div className="w-2 h-2 rounded-full bg-[#ffaa00]" />
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Optical Distance</span>
           </div>
         </div>
       </div>
 
-      {/* Preset Indicator Overlay */}
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 pointer-events-none">
-        <div className="bg-black/90 backdrop-blur-2xl px-6 py-2.5 rounded-full border border-white/10 shadow-2xl">
-          <span className="text-[11px] font-mono font-black text-[#00ffcc] uppercase tracking-[0.2em] animate-pulse">
-            {currentPresetLabel}
+        <div className="bg-black/80 backdrop-blur-2xl px-6 py-2.5 rounded-full border border-white/10 shadow-2xl flex items-center gap-4">
+          <div className={`w-2 h-2 rounded-full ${state.floating ? 'bg-blue-500 animate-pulse' : 'bg-gray-700'}`} />
+          <span className="text-[10px] font-mono font-black text-white uppercase tracking-[0.2em]">
+            {currentPresetLabel} {state.floating ? '// LEVITATION_ON' : ''}
           </span>
         </div>
       </div>

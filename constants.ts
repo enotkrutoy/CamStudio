@@ -25,6 +25,13 @@ export const PRESET_LIST: PresetDefinition[] = [
     state: { rotate: 0, forward: 2, tilt: 0.9, wideAngle: true, floating: false }
   },
   {
+    id: 'cinematic-zoom',
+    label: 'Кино-зум',
+    icon: '🎬',
+    description: 'Эффект раздвигающегося пространства (Dolly Zoom).',
+    state: { rotate: 0, forward: 7, tilt: 0, wideAngle: true, floating: false }
+  },
+  {
     id: 'dutch',
     label: 'Голландский угол',
     icon: '📐',

@@ -20,7 +20,10 @@ export class GeminiService {
     
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+        // [Проблема] Инициализация GoogleGenAI с возможным пустым значением API_KEY.
+        // [Диагностика] Правила требуют использования process.env.API_KEY напрямую.
+        // [Решение] Убираем fallback и используем process.env.API_KEY как единственный источник.
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const isPro = settings.quality === 'pro';
         const modelName = isPro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
         

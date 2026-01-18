@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useMemo } from 'react';
 import { CameraControlState } from '../types';
 import { DEFAULT_CAMERA_STATE } from '../constants';
@@ -10,11 +11,10 @@ export const useCameraControls = () => {
   const updateState = useCallback((updates: Partial<CameraControlState>) => {
     setState(prev => {
       const newState = { ...prev, ...updates };
-      // Only save to history if something actually changed and it's not a tiny jitter
       const hasChanged = Object.entries(updates).some(([key, value]) => (prev as any)[key] !== value);
       
       if (hasChanged) {
-        setPast(p => [...p, prev].slice(-50)); // Limit history to 50 steps
+        setPast(p => [...p, prev].slice(-50));
         setFuture([]);
       }
       return newState;
@@ -24,20 +24,16 @@ export const useCameraControls = () => {
   const undo = useCallback(() => {
     if (past.length === 0) return;
     const previous = past[past.length - 1];
-    const newPast = past.slice(0, past.length - 1);
-    
     setFuture(f => [state, ...f]);
-    setPast(newPast);
+    setPast(past.slice(0, past.length - 1));
     setState(previous);
   }, [past, state]);
 
   const redo = useCallback(() => {
     if (future.length === 0) return;
     const next = future[0];
-    const newFuture = future.slice(1);
-    
     setPast(p => [...p, state]);
-    setFuture(newFuture);
+    setFuture(future.slice(1));
     setState(next);
   }, [future, state]);
 
@@ -50,36 +46,39 @@ export const useCameraControls = () => {
   const buildCameraPrompt = useCallback((s: CameraControlState): string => {
     const segments: string[] = [];
 
+    // Special Case: Dolly Zoom / Cinematic Effect
+    if (s.wideAngle && s.forward > 6 && Math.abs(s.rotate) < 10 && Math.abs(s.tilt) < 0.2) {
+      return "DOLLY_ZOOM_RECONSTRUCTION: Simulate a Hitchcock 'Vertigo' effect. Fast camera movement towards subject while simultaneously widening field-of-view (12mm). Background should appear to peel away while subject remains fixed size. Hyper-realistic parallax.";
+    }
+
     if (s.floating) {
-      segments.push("PHYSICS_OVERRIDE: Enable zero-gravity for primary subject. Position: 50cm vertical offset from ground plane. Render high-fidelity ambient occlusion (AO) and soft contact shadows on the floor. No visible supports.");
-    } else if (s.rotate === 0 && s.forward === 0 && s.tilt === 0 && !s.wideAngle) {
-      return "no camera movement";
+      segments.push("PHYSICS_OVERRIDE: Enable zero-gravity levitation for the subject. Offset height: +60cm from ground. Add ethereal sub-surface scattering and soft atmospheric haze beneath the subject. No contact points.");
     }
 
     if (s.rotate !== 0) {
       const direction = s.rotate > 0 ? "clockwise" : "counter-clockwise";
-      segments.push(`ORBIT_TRANSFORM: Pivot camera ${Math.abs(s.rotate)} degrees ${direction} around the center of interest. Recalculate global illumination for new azimuth.`);
+      segments.push(`AZIMUTH_TRANSFORM: Pivot camera ${Math.abs(s.rotate)}° ${direction}. Recalculate volumetric lighting and ray-traced reflections based on the new angular position.`);
     }
 
-    if (s.forward > 5) {
-      segments.push("DOLLY_IN: Move camera to extreme close-up (macro range). Increase depth of field (DoF) blur on background.");
-    } else if (s.forward > 2) {
-      segments.push("DOLLY_IN: Advance camera to medium-shot range. Tighten perspective lines.");
+    if (s.forward > 8) {
+      segments.push("MACRO_FOCUS: Distance < 30cm. Shallow depth of field (f/1.4). Focus on micro-textures and intricate surface details. High-frequency detail enhancement.");
+    } else if (s.forward > 3) {
+      segments.push(`DOLLY_IN: Move camera to ${10 - s.forward}m distance. Compress spatial depth, increase subject presence.`);
     }
 
-    if (s.tilt > 0.4) {
-      segments.push("PITCH_TRANSFORM: High-angle 'God view' perspective looking down 45 degrees. Compress vertical subject data.");
-    } else if (s.tilt < -0.4) {
-      segments.push("PITCH_TRANSFORM: Low-angle 'Hero shot' perspective looking up. Exaggerate subject height and grandeur.");
+    if (s.tilt > 0.5) {
+      segments.push("ZENITH_PERSPECTIVE: Extreme top-down angle. Flatten subject proportions, emphasize floor geometry and layout patterns.");
+    } else if (s.tilt < -0.5) {
+      segments.push("LOW_ANGLE_HERO: Extreme upward tilt. Exaggerate vertical scale and power dynamics. Lengthen perspective lines.");
     }
 
     if (s.wideAngle) {
-      segments.push("OPTICS_PROFILE: 14mm Ultra-wide lens. Apply subtle radial barrel distortion. Enhance peripheral environment detail and stretch vanishing points.");
+      segments.push("OPTICS: 14mm rectilinear ultra-wide lens profile. Intentional corner stretching, enhanced peripheral vision, deep focus across all planes.");
     } else {
-      segments.push("OPTICS_PROFILE: 50mm Prime lens. Natural perspective, zero distortion, human-eye field of view.");
+      segments.push("OPTICS: 85mm portrait telephoto lens profile. Flat perspective, natural compression, creamy bokeh on background elements.");
     }
 
-    return segments.join(" ");
+    return segments.length > 0 ? segments.join(" ") : "no camera movement";
   }, []);
 
   const generatedPrompt = useMemo(() => buildCameraPrompt(state), [state, buildCameraPrompt]);

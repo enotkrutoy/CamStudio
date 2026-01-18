@@ -12,6 +12,19 @@ import { CameraSliders } from './components/CameraSliders';
 import { PresetGallery } from './components/PresetGallery';
 import { geminiService } from './services/geminiService';
 
+// [Проблема] Ошибка TypeScript: "All declarations of 'aistudio' must have identical modifiers" и несоответствие типа.
+// [Диагностика] 'aistudio' в глобальном интерфейсе Window уже существует как readonly свойство типа AIStudio.
+// [Решение] Определяем интерфейс AIStudio и объявляем расширение Window с использованием модификатора readonly и корректного имени типа.
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+  interface Window {
+    readonly aistudio: AIStudio;
+  }
+}
+
 const App: React.FC = () => {
   const { state: cameraState, updateState: updateCamera, reset: resetCamera, generatedPrompt } = useCameraControls();
   const [settings, setSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
@@ -22,6 +35,17 @@ const App: React.FC = () => {
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [error, setError] = useState<{message: string, type: string} | null>(null);
   const [activeTab, setActiveTab] = useState<'3d' | 'sliders'>('3d');
+
+  const handleSettingsUpdate = useCallback(async (updates: Partial<GenerationSettings>) => {
+    if (updates.quality === 'pro') {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      if (!hasKey) {
+        await window.aistudio.openSelectKey();
+        // Proceeding assuming selection was successful per rules
+      }
+    }
+    setSettings(s => ({ ...s, ...updates }));
+  }, []);
 
   const startGenerationFlow = useCallback(async () => {
     if (!sourceImage || isGenerating) return;
@@ -52,15 +76,22 @@ const App: React.FC = () => {
       setHistory(prev => [newResult, ...prev].slice(0, 20));
     } catch (err: any) {
       const isQuota = err.message?.includes("QUOTA") || err.message?.includes("429");
-      setError({
-        message: isQuota ? "Сервер перегружен. Лимит запросов исчерпан." : "Ошибка синтеза ракурса.",
-        type: isQuota ? 'quota' : 'system'
-      });
+      const isNotFound = err.message?.includes("Requested entity was not found");
+      
+      if (isNotFound) {
+        setError({ message: "Ошибка ключа доступа. Пожалуйста, выберите ключ заново.", type: 'key' });
+        await window.aistudio.openSelectKey();
+      } else {
+        setError({
+          message: isQuota ? "Сервер перегружен. Лимит запросов исчерпан." : "Ошибка синтеза ракурса.",
+          type: isQuota ? 'quota' : 'system'
+        });
+      }
     } finally {
       setIsGenerating(false);
       setRetrySeconds(0);
     }
-  }, [sourceImage, isGenerating, generatedPrompt, settings, cameraState]);
+  }, [sourceImage, i    sGenerating, generatedPrompt, settings, cameraState]);
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans">
@@ -110,23 +141,23 @@ const App: React.FC = () => {
             {isGenerating && (
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
                 <div className="w-10 h-10 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest">
+                <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest text-center">
                   {retrySeconds > 0 ? `Квота превышена. Ждем ${retrySeconds}с...` : 'Синтез изображения...'}
                 </p>
               </div>
             )}
           </div>
           <PresetGallery onSelect={(s) => { updateCamera(s); }} />
-          <GenerationSettingsPanel settings={settings} onChange={(u) => { setSettings(s => ({...s, ...u})); }} />
+          <GenerationSettingsPanel settings={settings} onChange={handleSettingsUpdate} />
           <HistorySidebar history={history} onSelect={(res) => { setResult(res); }} onClear={() => { setHistory([]); }} />
         </aside>
       </main>
 
       {error && (
         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[300] w-full max-w-md px-4">
-          <div className={`p-6 rounded-[2rem] border shadow-2xl bg-red-500/10 border-red-500/50 flex justify-between items-center`}>
+          <div className={`p-6 rounded-[2rem] border shadow-2xl bg-red-500/10 border-red-500/50 flex justify-between items-center backdrop-blur-xl`}>
             <p className="text-[11px] font-black uppercase tracking-widest text-white">{error.message}</p>
-            <button onClick={() => setError(null)} className="text-white/40 hover:text-white">✕</button>
+            <button onClick={() => setError(null)} className="text-white/40 hover:text-white ml-4">✕</button>
           </div>
         </div>
       )}
