@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { GenerationSettings, ImageData, GenerationResult, CameraPreset } from './types';
-import { DEFAULT_SETTINGS, DEFAULT_CAMERA_STATE } from './constants';
+import { DEFAULT_SETTINGS } from './constants';
 import { useCameraControls } from './hooks/useCameraControls';
 import { Camera3DControl } from './components/Camera3DControl';
 import { ImageUploader } from './components/ImageUploader';
@@ -12,11 +13,14 @@ import { PresetGallery } from './components/PresetGallery';
 import { geminiService } from './services/geminiService';
 
 declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
   interface Window {
-    aistudio: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
+    // [FIX] Make aistudio optional to match identical modifiers if declared elsewhere
+    aistudio?: AIStudio;
   }
 }
 
@@ -37,8 +41,10 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'3d' | 'sliders'>('3d');
   const [activePreset, setActivePreset] = useState<CameraPreset | undefined>('default');
   const [apiKeyReady, setApiKeyReady] = useState<boolean | null>(null);
+  
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'success'>('idle');
 
-  // [FIX] Perform initial API key availability check for models requiring individual keys
   useEffect(() => {
     const checkKey = async () => {
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
@@ -54,7 +60,7 @@ const App: React.FC = () => {
   const handleSelectKey = async () => {
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       await window.aistudio.openSelectKey();
-      // [FIX] Procedural assumption: key is selected immediately to avoid race conditions per guidelines
+      // Assume success as per guidelines to avoid race condition
       setApiKeyReady(true);
     }
   };
@@ -67,7 +73,7 @@ const App: React.FC = () => {
   const startGenerationFlow = async () => {
     if (!sourceImage) return;
 
-    // [FIX] Pro quality model requires explicit API key selection by the user
+    // Check for API key if using Pro quality
     if (settings.quality === 'pro' && !apiKeyReady) {
       if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
         await handleSelectKey();
@@ -93,9 +99,9 @@ const App: React.FC = () => {
       setResult(newResult);
       setHistory(prev => [newResult, ...prev]);
     } catch (err: any) {
-      // [FIX] Handle 404 project errors by prompting re-selection of a paid project key
+      // Re-trigger key selection if project is not found (per guidelines)
       if (err.message && err.message.includes("Requested entity was not found.")) {
-        setError("SYSTEM_FAULT: API Key not found or invalid project. Please re-select key.");
+        setError("SYSTEM_FAULT: Project not found or invalid API Key. Please re-select a key from a paid project.");
         setApiKeyReady(false);
         if (window.aistudio) await window.aistudio.openSelectKey();
       } else {
@@ -106,25 +112,44 @@ const App: React.FC = () => {
     }
   };
 
+  const copyImageToClipboard = async (url: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({ [blob.type]: blob })
+      ]);
+      setCopyStatus('success');
+      setTimeout(() => setCopyStatus('idle'), 2000);
+    } catch (err) {
+      setError("Ошибка при копировании изображения.");
+    }
+  };
+
+  const downloadImage = (url: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `qwencam-${Date.now()}.png`;
+    link.click();
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans selection:bg-orange-500/30">
-      {/* API Key Banner for gemini-3-pro-image-preview requirements */}
       {settings.quality === 'pro' && !apiKeyReady && (
-        <div className="bg-blue-600/20 border-b border-blue-500/30 px-8 py-3 flex items-center justify-between backdrop-blur-md">
-          <p className="text-xs font-bold text-blue-300 tracking-wide uppercase">
+        <div className="bg-blue-600/20 border-b border-blue-500/30 px-8 py-3 flex items-center justify-between backdrop-blur-md sticky top-0 z-[200]">
+          <p className="text-[10px] font-bold text-blue-300 tracking-wide uppercase">
             Pro Mode требует активации API Key из платного проекта GCP
-            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="ml-4 underline opacity-70 hover:opacity-100">Документация</a>
+            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="ml-4 underline opacity-70 hover:opacity-100">Биллинг Документация</a>
           </p>
           <button 
             onClick={handleSelectKey}
-            className="bg-blue-500 hover:bg-blue-400 text-white text-[10px] font-black px-4 py-1.5 rounded-full uppercase transition-all"
+            className="bg-blue-500 hover:bg-blue-400 text-white text-[10px] font-black px-4 py-1.5 rounded-full uppercase transition-all shadow-lg shadow-blue-500/20"
           >
             Выбрать Ключ
           </button>
         </div>
       )}
 
-      {/* Navigation Tabs */}
       <div className="h-16 flex items-center px-8 border-b border-white/5 bg-black/40 backdrop-blur-md">
         <div className="flex gap-8">
           <button 
@@ -144,9 +169,8 @@ const App: React.FC = () => {
 
       <main className="flex-1 p-6 lg:p-10 max-w-[1600px] mx-auto w-full grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-10">
         
-        {/* Viewport Area */}
         <div className="flex flex-col gap-8">
-          <div className="relative aspect-[16/10] min-h-[500px] bg-black rounded-[2.5rem] overflow-hidden shadow-2xl">
+          <div className="relative aspect-[16/10] min-h-[500px] bg-black rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/5">
             {activeTab === '3d' ? (
               <Camera3DControl 
                 state={cameraState} 
@@ -161,7 +185,7 @@ const App: React.FC = () => {
             )}
             
             {!sourceImage && (
-              <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-500">
                 <div className="w-full max-w-md p-6">
                   <ImageUploader onUpload={setSourceImage} />
                 </div>
@@ -169,7 +193,6 @@ const App: React.FC = () => {
             )}
           </div>
 
-          {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-6">
             <button 
               onClick={() => { resetCamera(); setActivePreset('default'); }}
@@ -196,13 +219,76 @@ const App: React.FC = () => {
           </div>
 
           <PromptConsole prompt={generatedPrompt} />
+
+          {result?.groundingChunks && result.groundingChunks.length > 0 && (
+            <div className="bg-black/40 rounded-3xl border border-white/5 p-6 backdrop-blur-md">
+              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                Источники и Обоснование (Grounding)
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {result.groundingChunks.map((chunk, idx) => (
+                  chunk.web && (
+                    <a 
+                      key={idx}
+                      href={chunk.web.uri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all group overflow-hidden"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-all shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold text-gray-300 truncate">{chunk.web.title || "External Source"}</p>
+                        <p className="text-[8px] text-gray-500 truncate font-mono">{chunk.web.uri}</p>
+                      </div>
+                    </a>
+                  )
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Sidebar */}
         <aside className="flex flex-col gap-8">
           <div className="relative aspect-square rounded-[3rem] bg-black border border-white/5 overflow-hidden shadow-2xl flex items-center justify-center group">
             {result ? (
-              <img src={result.imageUrl} className="w-full h-full object-cover" alt="Result" />
+              <>
+                <img 
+                  src={result.imageUrl} 
+                  className="w-full h-full object-cover cursor-zoom-in transition-transform duration-500 group-hover:scale-105" 
+                  alt="Result" 
+                  onClick={() => setIsZoomed(true)}
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-8 gap-4">
+                  <button 
+                    onClick={() => copyImageToClipboard(result.imageUrl)}
+                    className="w-12 h-12 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl flex items-center justify-center hover:bg-orange-500 transition-all active:scale-90 shadow-lg"
+                    title="Копировать в буфер"
+                  >
+                    {copyStatus === 'success' ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    )}
+                  </button>
+                  <button 
+                    onClick={() => downloadImage(result.imageUrl)}
+                    className="w-12 h-12 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl flex items-center justify-center hover:bg-orange-500 transition-all active:scale-90 shadow-lg"
+                    title="Скачать результат"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  </button>
+                  <button 
+                    onClick={() => setIsZoomed(true)}
+                    className="w-12 h-12 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl flex items-center justify-center hover:bg-orange-500 transition-all active:scale-90 shadow-lg"
+                    title="Развернуть"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                  </button>
+                </div>
+              </>
             ) : (
               <div className="text-center opacity-10">
                 <svg className="mx-auto mb-6" xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><circle cx="9" cy="9" r="2"/></svg>
@@ -210,28 +296,9 @@ const App: React.FC = () => {
               </div>
             )}
             {isGenerating && (
-              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4">
+              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
                 <div className="w-12 h-12 border-t-2 border-orange-500 rounded-full animate-spin shadow-[0_0_20px_rgba(234,88,12,0.4)]" />
-                <p className="text-[10px] font-mono font-bold text-orange-500 animate-pulse">PROCESSING_VOXELS...</p>
-              </div>
-            )}
-            {/* [FIX] Display Google Search grounding metadata per strict policy guidelines */}
-            {result?.groundingChunks && result.groundingChunks.length > 0 && (
-              <div className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-xl border border-white/10 p-4 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2">Источники данных</p>
-                <div className="flex flex-wrap gap-2">
-                  {result.groundingChunks.map((chunk, idx) => chunk.web && (
-                    <a 
-                      key={idx} 
-                      href={chunk.web.uri} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="text-[9px] bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full border border-blue-500/20 hover:bg-blue-500/20 transition-all truncate max-w-[150px]"
-                    >
-                      {chunk.web.title || chunk.web.uri}
-                    </a>
-                  ))}
-                </div>
+                <p className="text-[10px] font-mono font-bold text-orange-500 animate-pulse uppercase tracking-widest">Processing Voxels...</p>
               </div>
             )}
           </div>
@@ -243,9 +310,46 @@ const App: React.FC = () => {
 
       </main>
 
+      {isZoomed && result && (
+        <div 
+          className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-4 lg:p-12 animate-in fade-in duration-300"
+          onClick={() => setIsZoomed(false)}
+        >
+          <div className="relative max-w-full max-h-full flex flex-col items-center gap-8" onClick={e => e.stopPropagation()}>
+            <img 
+              src={result.imageUrl} 
+              className="max-h-[80vh] w-auto rounded-[2.5rem] shadow-[0_0_150px_rgba(0,0,0,0.8)] border border-white/10 object-contain"
+              alt="Zoomed Reconstruction"
+            />
+            <div className="flex gap-4">
+              <button 
+                onClick={() => copyImageToClipboard(result.imageUrl)}
+                className="bg-white/10 hover:bg-white/20 border border-white/10 px-8 py-4 rounded-2xl flex items-center gap-3 font-black text-[10px] uppercase tracking-widest transition-all"
+              >
+                {copyStatus === 'success' ? 'Copied!' : 'Copy to Clipboard'}
+              </button>
+              <button 
+                onClick={() => downloadImage(result.imageUrl)}
+                className="bg-orange-600 hover:bg-orange-500 px-8 py-4 rounded-2xl flex items-center gap-3 font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-orange-600/20"
+              >
+                Download PNG
+              </button>
+              <button 
+                onClick={() => setIsZoomed(false)}
+                className="bg-white/5 hover:bg-white/10 px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-white/5"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] px-8 py-5 bg-red-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl animate-in fade-in slide-in-from-bottom-10 duration-500">
-          SYSTEM_FAULT: {error}
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] px-8 py-5 bg-red-600 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl animate-in fade-in slide-in-from-bottom-10 duration-500 flex items-center gap-4">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          {error}
+          <button onClick={() => setError(null)} className="ml-2 opacity-50 hover:opacity-100">✕</button>
         </div>
       )}
     </div>

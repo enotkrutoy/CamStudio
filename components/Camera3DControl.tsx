@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { CameraControlState, ImageData, CameraPreset } from '../types';
-import { FORWARD_LIMITS, ROTATE_LIMITS, TILT_LIMITS, PRESET_LIST } from '../constants';
+import { ROTATE_LIMITS, TILT_LIMITS, PRESET_LIST } from '../constants';
 
 interface Props {
   state: CameraControlState;
@@ -139,7 +139,7 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     animate();
 
     return () => renderer.dispose();
-  }, []);
+  }, [onChange]);
 
   useEffect(() => {
     if (!modelCameraRef.current) return;
@@ -170,7 +170,6 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     tiltArcRef.current?.geometry.setFromPoints(tiltPoints);
     tiltNodeRef.current?.position.copy(modelCameraRef.current.position).multiplyScalar(0.9);
     
-    // [FIX] The left-hand side of an assignment expression may not be an optional property access.
     if (tiltNodeRef.current) {
       tiltNodeRef.current.position.y = camY;
     }
