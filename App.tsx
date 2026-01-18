@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { CameraControlState, GenerationSettings, ImageData, GenerationResult, CameraPreset } from './types';
 import { DEFAULT_SETTINGS, PRESETS } from './constants';
@@ -10,15 +9,15 @@ import { PromptConsole } from './components/PromptConsole';
 import { HistorySidebar } from './components/HistorySidebar';
 import { geminiService } from './services/geminiService';
 
-declare global {
-  // Define AIStudio interface to match the environment's expected type
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
+// Defining the interface locally to satisfy TypeScript and match existing global definitions
+interface AIStudio {
+  hasSelectedApiKey: () => Promise<boolean>;
+  openSelectKey: () => Promise<void>;
+}
 
+declare global {
   interface Window {
-    // Removed readonly to avoid modifier mismatch with global definitions
+    // Using the matching type name to resolve duplication errors
     aistudio: AIStudio;
   }
 }
@@ -62,10 +61,11 @@ const App: React.FC = () => {
 
   const handleOpenKeyPicker = async () => {
     try {
-      await window.aistudio.openSelectKey();
-      setShowKeyPicker(false);
-      // Assume success and proceed to generate
-      await startGenerationFlow();
+      if (window.aistudio) {
+        await window.aistudio.openSelectKey();
+        setShowKeyPicker(false);
+        await startGenerationFlow();
+      }
     } catch (err) {
       setError("Failed to initialize secure key selector.");
     }
@@ -75,10 +75,15 @@ const App: React.FC = () => {
     if (!sourceImage) return;
     
     if (settings.quality === 'pro') {
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      if (!hasKey) {
-        setShowKeyPicker(true);
-        return;
+      try {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          setShowKeyPicker(true);
+          return;
+        }
+      } catch (e) {
+        // Fallback if the environment bridge is not available
+        console.warn("AIStudio bridge not detected, continuing with environment key.");
       }
     }
 

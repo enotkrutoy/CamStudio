@@ -8,8 +8,8 @@ export class GeminiService {
     cameraPrompt: string,
     settings: GenerationSettings
   ): Promise<string> {
-    // ALWAYS initialize right before usage as per guidelines.
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // ALWAYS initialize right before usage with the named parameter as required.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
     const modelName = settings.quality === 'pro' ? MODELS.pro : MODELS.flash;
     
     const imagePart = {
@@ -43,13 +43,12 @@ export class GeminiService {
       }
     };
 
-    // Support for higher resolutions and grounding tools if Pro model is selected
     if (settings.quality === 'pro') {
       config.imageConfig.imageSize = settings.imageSize || '1K';
-      // Enable Google Search grounding for the highest quality Pro output
       config.tools = [{ googleSearch: {} }];
     }
 
+    // Explicitly type the result to satisfy TS
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: modelName,
       contents: { parts: [imagePart, textPart] },
@@ -58,8 +57,9 @@ export class GeminiService {
 
     let imageUrl = '';
     const candidate = response.candidates?.[0];
+    
     if (candidate?.content?.parts) {
-      // Iterate through all parts to find the image part as instructed.
+      // Correct way to extract data: iterate all parts to find inlineData
       for (const part of candidate.content.parts) {
         if (part.inlineData) {
           imageUrl = `data:image/png;base64,${part.inlineData.data}`;
@@ -68,7 +68,10 @@ export class GeminiService {
       }
     }
 
-    if (!imageUrl) throw new Error("CRITICAL_FAULT: Visual buffer reconstruction failed. Check API balance or constraints.");
+    if (!imageUrl) {
+      throw new Error("CRITICAL_FAULT: Visual buffer reconstruction failed. Model returned no image data.");
+    }
+
     return imageUrl;
   }
 }
