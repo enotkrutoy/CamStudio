@@ -40,7 +40,7 @@ export const PromptConsole: React.FC<Props> = ({ prompt }) => {
         )}
       </div>
       <div className="text-gray-400 leading-relaxed overflow-y-auto h-14 scrollbar-hide pr-4">
-        <span className="text-blue-400 mr-2 font-black">>></span>
+        <span className="text-blue-400 mr-2 font-black">{">>" }</span>
         {prompt === "no camera movement" ? (
           <span className="italic text-gray-600">IDLE: Adjust 3D controls to populate buffer...</span>
         ) : (

@@ -11,12 +11,15 @@ import { HistorySidebar } from './components/HistorySidebar';
 import { geminiService } from './services/geminiService';
 
 declare global {
-  // Fix: Unified modifiers for 'aistudio' to match environment definitions
+  // Define AIStudio interface to match the environment's expected type
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
   interface Window {
-    readonly aistudio: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
+    // Removed readonly to avoid modifier mismatch with global definitions
+    aistudio: AIStudio;
   }
 }
 
