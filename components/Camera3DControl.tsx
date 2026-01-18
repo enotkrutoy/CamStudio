@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { CameraControlState } from '../types';
@@ -205,7 +204,10 @@ export const Camera3DControl: React.FC<Props> = ({ state, onChange }) => {
       if (coneRef.current) {
         const scale = state.wideAngle ? 2.5 : 1;
         coneRef.current.scale.set(scale, 1, scale);
-        coneRef.current.material.opacity = state.wideAngle ? 0.15 : 0.05;
+        // Fix TS2339 by casting material to MeshBasicMaterial
+        if (coneRef.current.material && !Array.isArray(coneRef.current.material)) {
+          (coneRef.current.material as THREE.MeshBasicMaterial).opacity = state.wideAngle ? 0.15 : 0.05;
+        }
       }
     }
   }, [state]);

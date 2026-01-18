@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { CameraControlState, GenerationSettings, ImageData, GenerationResult, CameraPreset } from './types';
+import { GenerationSettings, ImageData, GenerationResult, CameraPreset } from './types';
 import { DEFAULT_SETTINGS, PRESETS } from './constants';
 import { useCameraControls } from './hooks/useCameraControls';
 import { Camera3DControl } from './components/Camera3DControl';
@@ -9,16 +9,14 @@ import { PromptConsole } from './components/PromptConsole';
 import { HistorySidebar } from './components/HistorySidebar';
 import { geminiService } from './services/geminiService';
 
-// Defining the interface locally to satisfy TypeScript and match existing global definitions
-interface AIStudio {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
-}
-
+// [Diagnostic] The previous declaration of 'aistudio' on 'Window' was conflicting with global types.
+// [Solution] Make the property optional and define it in-line to ensure compatibility with pre-existing global declarations.
 declare global {
   interface Window {
-    // Using the matching type name to resolve duplication errors
-    aistudio: AIStudio;
+    aistudio?: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
   }
 }
 
@@ -76,10 +74,12 @@ const App: React.FC = () => {
     
     if (settings.quality === 'pro') {
       try {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-          setShowKeyPicker(true);
-          return;
+        if (window.aistudio) {
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          if (!hasKey) {
+            setShowKeyPicker(true);
+            return;
+          }
         }
       } catch (e) {
         // Fallback if the environment bridge is not available
@@ -237,7 +237,7 @@ const App: React.FC = () => {
           <div className="relative aspect-square rounded-[3.5rem] bg-black border border-white/10 shadow-[0_0_100px_rgba(0,0,0,1)] flex items-center justify-center overflow-hidden group">
             {result ? (
               <div className="relative w-full h-full">
-                <img src={result.imageUrl} className="w-full h-full object-contain cursor-zoom-in animate-in fade-in duration-1000" onClick={() => setIsLightboxOpen(true)} />
+                <img src={result.imageUrl} className="w-full h-full object-contain cursor-zoom-in animate-in fade-in duration-1000" onClick={() => setIsLightboxOpen(true)} alt="Generated cinematic output" />
                 <div className="absolute top-6 right-6 flex gap-2">
                    <button onClick={copyImageToClipboard} className="w-10 h-10 bg-black/60 backdrop-blur-md rounded-full border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all" title="Copy to clipboard">
                      {copyStatus === 'success' ? '✓' : <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>}
@@ -335,7 +335,7 @@ const App: React.FC = () => {
 
       {isLightboxOpen && result && (
         <div className="fixed inset-0 z-[100] bg-black/98 backdrop-blur-3xl flex items-center justify-center p-12 cursor-zoom-out animate-in zoom-in duration-300" onClick={() => setIsLightboxOpen(false)}>
-          <img src={result.imageUrl} className="max-w-full max-h-full rounded-2xl shadow-[0_0_100px_rgba(0,0,0,1)]" />
+          <img src={result.imageUrl} className="max-w-full max-h-full rounded-2xl shadow-[0_0_100px_rgba(0,0,0,1)]" alt="Cinematic result zoom" />
         </div>
       )}
 
