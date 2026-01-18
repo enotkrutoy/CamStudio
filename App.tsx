@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { GenerationSettings, ImageData, GenerationResult, CameraPreset, GroundingChunk } from './types';
+import { GenerationSettings, ImageData, GenerationResult, CameraPreset } from './types';
 import { DEFAULT_SETTINGS } from './constants';
 import { useCameraControls } from './hooks/useCameraControls';
 import { Camera3DControl } from './components/Camera3DControl';
@@ -22,7 +22,6 @@ const App: React.FC = () => {
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [error, setError] = useState<{message: string, type: string} | null>(null);
   const [activeTab, setActiveTab] = useState<'3d' | 'sliders'>('3d');
-  const [apiKeyReady, setApiKeyReady] = useState<boolean>(true);
 
   const startGenerationFlow = useCallback(async () => {
     if (!sourceImage || isGenerating) return;
@@ -117,9 +116,9 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
-          <PresetGallery onSelect={(s, id) => updateCamera(s)} />
-          <GenerationSettingsPanel settings={settings} onChange={(u) => setSettings(s => ({...s, ...u}))} />
-          <HistorySidebar history={history} onSelect={setResult} onClear={() => setHistory([])} />
+          <PresetGallery onSelect={(s) => { updateCamera(s); }} />
+          <GenerationSettingsPanel settings={settings} onChange={(u) => { setSettings(s => ({...s, ...u})); }} />
+          <HistorySidebar history={history} onSelect={(res) => { setResult(res); }} onClear={() => { setHistory([]); }} />
         </aside>
       </main>
 
