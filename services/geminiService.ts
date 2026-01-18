@@ -8,10 +8,11 @@ export class GeminiService {
     cameraPrompt: string,
     settings: GenerationSettings
   ): Promise<{ imageUrl: string; groundingChunks?: GroundingChunk[] }> {
-    // [FIX] Always create a fresh instance to use latest API key (process.env or user selected)
+    // Create fresh instance to ensure we use the latest injected API key
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    const modelName = settings.quality === 'pro' ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+    const isPro = settings.quality === 'pro';
+    const modelName = isPro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
     const imagePart = {
       inlineData: {
@@ -20,17 +21,23 @@ export class GeminiService {
       },
     };
 
-    const textPart = {
-      text: `[RECONSTRUCTION_KERNEL_V11]
-TRANSFORM: Generate a high-fidelity new perspective from the source image.
-VIEWPORT_COMMAND: ${cameraPrompt}
-SEED_CONTROL: ${settings.seed}
-STABILITY_MODE: IDENTITY_LOCK_ULTRA
+    const creativeDirective = settings.creativeContext 
+      ? `CREATIVE_CONTEXT: ${settings.creativeContext}`
+      : "CREATIVE_CONTEXT: Preserve original scene atmosphere.";
 
-CORE_DIRECTIVE: 
-1. Maintain the exact likeness and identity of the subject from the source image.
-2. Adjust lighting, shadows, and parallax to match the new camera position.
-3. Ensure the environment looks consistent with the perspective shift.`
+    const textPart = {
+      text: `[SPATIAL_RECONSTRUCTION_KERNEL_V12]
+TRANSFORM_PROTOCOL: GENERATE_NEW_PERSPECTIVE
+VIEWPORT_MATRIX: ${cameraPrompt}
+${creativeDirective}
+SEED_CONTROL: ${settings.seed}
+STABILITY_MODE: IDENTITY_LOCK_ULTRA_PRECISE
+
+CORE_ENGINE_DIRECTIVES: 
+1. IDENTITY_PRESERVATION: The primary subject must remain identical in features, clothing, and proportions to the source.
+2. PARALLAX_CALCULATION: Shift background elements realistically based on the ${cameraPrompt} command.
+3. LIGHTING_COHERENCE: Recalculate shadows and highlights to match the new camera vector.
+4. ENVIRONMENT_SYNTHESIS: Fill in occluded areas with logical architectural or natural continuity.`
     };
 
     const config: any = {
@@ -39,10 +46,18 @@ CORE_DIRECTIVE:
       }
     };
 
-    if (settings.quality === 'pro') {
+    if (isPro) {
       config.imageConfig.imageSize = settings.imageSize || '1K';
-      // High-quality mode allows Google Search for context
+      // Pro model supports Search Grounding for real-time fidelity
       config.tools = [{ googleSearch: {} }];
+    } else if (settings.location) {
+      // 2.5 series models support Maps Grounding
+      config.tools = [{ googleMaps: {} }];
+      config.toolConfig = {
+        retrievalConfig: {
+          latLng: settings.location
+        }
+      };
     }
 
     try {
@@ -64,8 +79,9 @@ CORE_DIRECTIVE:
         }
       }
 
-      if (!imageUrl) throw new Error("ENGINE_FAULT: Failed to decode pixel stream.");
+      if (!imageUrl) throw new Error("RENDER_ENGINE_FAULT: Failed to synthesize perspective stream.");
 
+      // Extract and normalize grounding chunks
       const chunks = candidate?.groundingMetadata?.groundingChunks as GroundingChunk[];
 
       return { 
@@ -73,16 +89,14 @@ CORE_DIRECTIVE:
         groundingChunks: chunks
       };
     } catch (error: any) {
-      console.error("Gemini API Error:", error);
+      console.error("Gemini API Spatial Error:", error);
       
-      // Handle Quota
       if (error.message?.includes("429") || error.message?.includes("QUOTA")) {
-        throw new Error("QUOTA_LIMIT: Лимит бесплатных запросов исчерпан. Пожалуйста, подождите 60 секунд.");
+        throw new Error("QUOTA_LIMIT: Spatial processing units exhausted. Please hold for 60s.");
       }
       
-      // Handle Missing Project (API Key Error)
       if (error.message?.includes("Requested entity was not found")) {
-        throw new Error("AUTH_ERROR: Выбранный проект или ключ не найден. Пожалуйста, переподключите API-ключ.");
+        throw new Error("AUTH_ERROR: Identity context lost. Please re-authenticate your API session.");
       }
       
       throw error;

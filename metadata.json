@@ -2,6 +2,7 @@
   "name": "QwenCam Studio v3",
   "description": "Professional Spatial Intelligence Engine for AI Camera Angle Manipulation and Perspective Reconstruction.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "geolocation"
   ]
 }

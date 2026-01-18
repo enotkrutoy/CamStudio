@@ -17,6 +17,10 @@ export interface GenerationSettings {
   quality: 'flash' | 'pro';
   imageSize?: ImageSize;
   creativeContext?: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
 }
 
 export interface ImageData {
