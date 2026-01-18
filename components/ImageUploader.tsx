@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { ImageData } from '../types';
 
@@ -12,7 +11,7 @@ export const ImageUploader: React.FC<Props> = ({ onUpload }) => {
 
   const processFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file.');
+      alert('Пожалуйста, загрузите файл изображения.');
       return;
     }
 
@@ -50,8 +49,8 @@ export const ImageUploader: React.FC<Props> = ({ onUpload }) => {
       onDrop={onDrop}
       onClick={() => fileInputRef.current?.click()}
       className={`
-        relative border-2 border-dashed rounded-xl p-8 transition-all cursor-pointer text-center
-        ${isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-gray-700 hover:border-gray-600 bg-gray-800/30'}
+        relative border-2 border-dashed rounded-[2.5rem] p-12 transition-all cursor-pointer text-center group
+        ${isDragging ? 'border-blue-500 bg-blue-500/10 shadow-[0_0_50px_rgba(59,130,246,0.1)]' : 'border-white/5 hover:border-blue-500/30 bg-white/2'}
       `}
     >
       <input
@@ -62,13 +61,13 @@ export const ImageUploader: React.FC<Props> = ({ onUpload }) => {
         accept="image/*"
       />
       
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center text-gray-400 group-hover:text-blue-400 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+      <div className="flex flex-col items-center gap-6">
+        <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center text-gray-500 group-hover:text-blue-400 group-hover:bg-blue-500/10 transition-all duration-500 shadow-inner">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
         </div>
-        <div>
-          <p className="text-gray-200 font-medium">Click to upload or drag & drop</p>
-          <p className="text-gray-500 text-sm mt-1">Supports JPEG, PNG, WebP (Max 10MB)</p>
+        <div className="space-y-2">
+          <p className="text-gray-200 font-bold text-lg tracking-tight">Нажмите для загрузки или перетащите файл</p>
+          <p className="text-gray-500 text-sm font-medium">Поддержка JPEG, PNG, WebP (макс. 10МБ)</p>
         </div>
       </div>
     </div>

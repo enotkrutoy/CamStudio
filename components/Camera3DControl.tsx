@@ -1,25 +1,43 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { CameraControlState } from '../types';
+import { CameraControlState, ImageData } from '../types';
 
 interface Props {
   state: CameraControlState;
+  sourceImage: ImageData | null;
   onChange: (updates: Partial<CameraControlState>) => void;
 }
 
-export const Camera3DControl: React.FC<Props> = ({ state, onChange }) => {
+export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const modelCameraRef = useRef<THREE.Group | null>(null);
   const coneRef = useRef<THREE.Mesh | null>(null);
-  const targetRef = useRef<THREE.Mesh | null>(null);
+  const targetRef = useRef<THREE.Group | null>(null);
+  const photoPlaneRef = useRef<THREE.Mesh | null>(null);
 
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  // Обновление текстуры при смене изображения
+  useEffect(() => {
+    if (photoPlaneRef.current && sourceImage) {
+      const loader = new THREE.TextureLoader();
+      loader.load(sourceImage.base64, (texture) => {
+        if (photoPlaneRef.current) {
+          (photoPlaneRef.current.material as THREE.MeshBasicMaterial).map = texture;
+          (photoPlaneRef.current.material as THREE.MeshBasicMaterial).needsUpdate = true;
+          photoPlaneRef.current.visible = true;
+        }
+      });
+    } else if (photoPlaneRef.current) {
+      photoPlaneRef.current.visible = false;
+    }
+  }, [sourceImage]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -61,16 +79,31 @@ export const Camera3DControl: React.FC<Props> = ({ state, onChange }) => {
     const grid = new THREE.GridHelper(20, 20, 0x1e293b, 0x0f172a);
     scene.add(grid);
 
-    const targetGeo = new THREE.IcosahedronGeometry(1, 1);
-    const targetMat = new THREE.MeshStandardMaterial({ 
-      color: 0x3b82f6, 
-      wireframe: true,
-      emissive: 0x1d4ed8,
-      emissiveIntensity: 0.5
+    // Целевой объект (Группа с плоскостью фото)
+    const targetGroup = new THREE.Group();
+    
+    // Плоскость фото
+    const photoGeo = new THREE.PlaneGeometry(3, 2);
+    const photoMat = new THREE.MeshBasicMaterial({ 
+      color: 0xffffff, 
+      side: THREE.DoubleSide, 
+      transparent: true,
+      opacity: 0.8
     });
-    const target = new THREE.Mesh(targetGeo, targetMat);
-    scene.add(target);
-    targetRef.current = target;
+    const photoPlane = new THREE.Mesh(photoGeo, photoMat);
+    photoPlane.visible = false;
+    targetGroup.add(photoPlane);
+    photoPlaneRef.current = photoPlane;
+
+    // Каркас цели (вместо икосаэдра)
+    const targetBox = new THREE.Mesh(
+      new THREE.BoxGeometry(3.2, 2.2, 0.1),
+      new THREE.MeshBasicMaterial({ color: 0x3b82f6, wireframe: true, transparent: true, opacity: 0.2 })
+    );
+    targetGroup.add(targetBox);
+
+    scene.add(targetGroup);
+    targetRef.current = targetGroup;
 
     const ringGeo = new THREE.TorusGeometry(4, 0.02, 16, 100);
     const ringMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.2 });
@@ -177,7 +210,6 @@ export const Camera3DControl: React.FC<Props> = ({ state, onChange }) => {
       canvas.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mousemove', onMouseMove);
       
-      // PRODUCTION DISPOSAL
       scene.traverse((object: any) => {
         if (object.geometry) object.geometry.dispose();
         if (object.material) {
@@ -204,7 +236,6 @@ export const Camera3DControl: React.FC<Props> = ({ state, onChange }) => {
       if (coneRef.current) {
         const scale = state.wideAngle ? 2.5 : 1;
         coneRef.current.scale.set(scale, 1, scale);
-        // Fix TS2339 by casting material to MeshBasicMaterial
         if (coneRef.current.material && !Array.isArray(coneRef.current.material)) {
           (coneRef.current.material as THREE.MeshBasicMaterial).opacity = state.wideAngle ? 0.15 : 0.05;
         }
@@ -218,8 +249,11 @@ export const Camera3DControl: React.FC<Props> = ({ state, onChange }) => {
       <div className="absolute top-6 left-6 flex flex-col gap-2">
         <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-full">
           <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
-          <span className="text-[10px] font-black font-mono text-blue-400 uppercase tracking-widest">Spatial_Engine_v3.2</span>
+          <span className="text-[10px] font-black font-mono text-blue-400 uppercase tracking-widest">Spatial_Engine_v3.5</span>
         </div>
+      </div>
+      <div className="absolute bottom-6 right-6 text-[8px] font-mono text-gray-600 uppercase tracking-widest pointer-events-none">
+        Используйте мышь для орбитального вращения
       </div>
     </div>
   );

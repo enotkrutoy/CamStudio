@@ -9,7 +9,8 @@ export class GeminiService {
     settings: GenerationSettings
   ): Promise<string> {
     // ALWAYS initialize right before usage with the named parameter as required.
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    // Use the API key directly from the environment.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const modelName = settings.quality === 'pro' ? MODELS.pro : MODELS.flash;
     
     const imagePart = {
@@ -45,7 +46,8 @@ export class GeminiService {
 
     if (settings.quality === 'pro') {
       config.imageConfig.imageSize = settings.imageSize || '1K';
-      config.tools = [{ googleSearch: {} }];
+      // High-quality image generation with real-time search support
+      config.tools = [{ google_search: {} }];
     }
 
     // Explicitly type the result to satisfy TS
