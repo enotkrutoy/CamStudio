@@ -1,4 +1,5 @@
 
+
 export interface CameraControlState {
   rotate: number; // -90 to 90
   forward: number; // 0 to 10
@@ -27,6 +28,13 @@ export interface ImageData {
   dimensions?: { width: number; height: number };
 }
 
+export interface GroundingChunk {
+  web?: {
+    uri: string;
+    title: string;
+  };
+}
+
 export interface GenerationResult {
   id: string;
   imageUrl: string;
@@ -34,6 +42,15 @@ export interface GenerationResult {
   timestamp: number;
   settings: GenerationSettings;
   cameraState: CameraControlState;
+  groundingChunks?: GroundingChunk[];
 }
 
-export type CameraPreset = 'default' | 'birdseye' | 'dutch' | 'macro' | 'low-angle' | 'wide-orbit';
+export type CameraPreset = 'default' | 'birdseye' | 'dutch' | 'macro' | 'low-angle' | 'wide-orbit' | 'top-down' | 'cinematic-zoom';
+
+export interface PresetDefinition {
+  id: CameraPreset;
+  label: string;
+  icon: string;
+  state: Partial<CameraControlState>;
+  description: string;
+}

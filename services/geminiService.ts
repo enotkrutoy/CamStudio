@@ -1,5 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { ImageData, GenerationSettings } from "../types";
+import { ImageData, GenerationSettings, GroundingChunk } from "../types";
 import { MODELS } from "../constants";
 
 export class GeminiService {
@@ -7,9 +7,8 @@ export class GeminiService {
     sourceImage: ImageData,
     cameraPrompt: string,
     settings: GenerationSettings
-  ): Promise<string> {
-    // ALWAYS initialize right before usage with the named parameter as required.
-    // Use the API key directly from the environment.
+  ): Promise<{ imageUrl: string; groundingChunks?: GroundingChunk[] }> {
+    // [FIX] Always create a new instance right before the call to ensure latest API key is used
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const modelName = settings.quality === 'pro' ? MODELS.pro : MODELS.flash;
     
@@ -20,22 +19,30 @@ export class GeminiService {
       },
     };
 
-    const creativeDirective = settings.creativeContext 
-      ? `[ATMOSPHERE & STYLE OVERRIDE: ${settings.creativeContext}]`
-      : "[STYLE: Maintain original image style and lighting perfectly]";
-
     const textPart = {
-      text: `[SYSTEM: SPATIAL_TRANSFORMATION_ENGINE_V3]
-      Transformation Command: ${cameraPrompt}
-      ${creativeDirective}
-      
-      TECHNICAL CONSTRAINTS:
-      1. GEOMETRY: Preserve primary subject identity.
-      2. PERSPECTIVE: Recalculate vanishing points for new orientation.
-      3. LIGHTING: Ensure shadows align with spatial coordinates.
-      4. SEED: ${settings.seed}
-      
-      OUTPUT: High-resolution cinematic result.`
+      text: `[SYSTEM_KERNEL: IDENTITY_PRESERVATION_ENGINE_V6]
+
+PHASE 0: NEUTRAL_VISUAL_REGISTRATION (MANDATORY)
+1. Выполни глубокий анализ входного изображения.
+2. Сформируй нейтральное, объективное описание субъекта, основываясь исключительно на визуальных данных.
+3. ЗАПРЕЩЕНО: Предполагать возраст, национальность, черты характера или эмоции. 
+4. ЗАПРЕЩЕНО: Использовать субъективные эпитеты (красивый, старый, грустный).
+5. Результат фазы 0 должен служить "якорем" для сохранения идентичности.
+
+PHASE 1: CRITICAL IDENTITY LOCK
+- Заблокируй биометрические параметры: расстояние между зрачками, архитектура скул, форма крыльев носа, линия роста волос.
+- СТРОГОЕ ВЕТО: Запрещено любое "улучшение", ретушь или омоложение лица. Лицо должно остаться на 100% идентичным оригиналу.
+- Текстура кожи и микро-детали (родинки, поры) должны быть перенесены без изменений.
+
+PHASE 2: SPATIAL_TRANSFORMATION
+- Выполни пространственную реконструкцию ракурса: ${cameraPrompt}
+- Контекст среды: ${settings.creativeContext || "Сохранять оригинальное освещение и материалы окружения"}
+
+TECHNICAL CONSTRAINTS:
+- PERSPECTIVE: Пересчитай все 3D-точки схода относительно НОВОГО положения камеры.
+- FIDELITY: Сохраняй консистентность освещения на лице субъекта при повороте.
+- SEED_STABILITY: ${settings.seed}
+- OUTPUT: Одна финальная реконструкция высокого разрешения.`
     };
 
     const config: any = {
@@ -46,11 +53,9 @@ export class GeminiService {
 
     if (settings.quality === 'pro') {
       config.imageConfig.imageSize = settings.imageSize || '1K';
-      // High-quality image generation with real-time search support
-      config.tools = [{ google_search: {} }];
+      config.tools = [{ googleSearch: {} }];
     }
 
-    // Explicitly type the result to satisfy TS
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: modelName,
       contents: { parts: [imagePart, textPart] },
@@ -61,7 +66,6 @@ export class GeminiService {
     const candidate = response.candidates?.[0];
     
     if (candidate?.content?.parts) {
-      // Correct way to extract data: iterate all parts to find inlineData
       for (const part of candidate.content.parts) {
         if (part.inlineData) {
           imageUrl = `data:image/png;base64,${part.inlineData.data}`;
@@ -71,10 +75,13 @@ export class GeminiService {
     }
 
     if (!imageUrl) {
-      throw new Error("CRITICAL_FAULT: Visual buffer reconstruction failed. Model returned no image data.");
+      throw new Error("RECONSTRUCTION_FAULT: Биометрический замок не был установлен. Попробуйте другое изображение.");
     }
 
-    return imageUrl;
+    // [FIX] Extract grounding metadata for transparency requirements when using googleSearch
+    const groundingChunks = candidate?.groundingMetadata?.groundingChunks as GroundingChunk[];
+
+    return { imageUrl, groundingChunks };
   }
 }
 
