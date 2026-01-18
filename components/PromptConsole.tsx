@@ -3,9 +3,11 @@ import React, { useState } from 'react';
 
 interface Props {
   prompt: string;
+  modelResponse?: string;
+  isGenerating?: boolean;
 }
 
-export const PromptConsole: React.FC<Props> = ({ prompt }) => {
+export const PromptConsole: React.FC<Props> = ({ prompt, modelResponse, isGenerating }) => {
   const [copied, setCopied] = useState(false);
 
   const copyToClipboard = async () => {
@@ -22,8 +24,8 @@ export const PromptConsole: React.FC<Props> = ({ prompt }) => {
     <div className="bg-black/80 rounded-[2rem] border border-orange-500/20 p-6 font-mono text-[11px] space-y-4 overflow-hidden shadow-inner h-full relative group">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3 text-orange-500/60 uppercase tracking-[0.2em] font-black">
-          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_10px_rgba(249,115,22,0.8)]" />
-          AI Spatial Monitor (Kernel V12)
+          <div className={`w-2 h-2 rounded-full bg-orange-500 ${isGenerating ? 'animate-ping' : ''} shadow-[0_0_10px_rgba(249,115,22,0.8)]`} />
+          AI Spatial Monitor (Kernel V12.5)
         </div>
         {prompt !== "no camera movement" && (
           <button 
@@ -40,8 +42,8 @@ export const PromptConsole: React.FC<Props> = ({ prompt }) => {
           <p className="text-[9px] font-black text-gray-700 uppercase">Analysis Status</p>
           <div className="p-2.5 bg-white/2 rounded-xl border border-white/5 space-y-1">
             <p className="text-green-500/80 flex items-center gap-2">
-              <span className="w-1 h-1 rounded-full bg-green-500" />
-              ID_LOCK: ACTIVE
+              <span className={`w-1 h-1 rounded-full ${isGenerating ? 'bg-orange-500 animate-pulse' : 'bg-green-500'}`} />
+              ID_LOCK: {isGenerating ? 'LOCKING...' : 'CRITICAL'}
             </p>
             <p className="text-blue-500/80 flex items-center gap-2">
               <span className="w-1 h-1 rounded-full bg-blue-500" />
@@ -50,11 +52,24 @@ export const PromptConsole: React.FC<Props> = ({ prompt }) => {
           </div>
         </div>
         <div className="text-gray-400 leading-relaxed overflow-y-auto max-h-[120px] scrollbar-hide pr-4 select-all selection:bg-orange-500/30">
-          <span className="text-orange-500 mr-2 font-black">ENGINE_LOG://</span>
-          {prompt === "no camera movement" ? (
-            <span className="italic text-gray-600">Waiting for spatial telemetry to initialize 'CRITICAL IDENTITY LOCK'...</span>
-          ) : (
-            prompt
+          <div className="mb-2">
+            <span className="text-orange-500 mr-2 font-black">TELEM_OUT://</span>
+            {prompt === "no camera movement" ? (
+              <span className="italic text-gray-600">Waiting for spatial telemetry to initialize...</span>
+            ) : (
+              prompt
+            )}
+          </div>
+          
+          {(modelResponse || isGenerating) && (
+            <div className="mt-4 pt-4 border-t border-white/5">
+              <span className="text-blue-500 mr-2 font-black">VISUAL_DESC_IN://</span>
+              {isGenerating ? (
+                <span className="animate-pulse text-gray-600">Analyzing input frames and locking identity vectors...</span>
+              ) : (
+                <span className="text-gray-300 italic">{modelResponse}</span>
+              )}
+            </div>
           )}
         </div>
       </div>

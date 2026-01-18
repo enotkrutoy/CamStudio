@@ -42,6 +42,7 @@ export interface GenerationResult {
   id: string;
   imageUrl: string;
   prompt: string;
+  modelResponse?: string;
   timestamp: number;
   settings: GenerationSettings;
   cameraState: CameraControlState;

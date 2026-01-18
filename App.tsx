@@ -12,16 +12,14 @@ import { CameraSliders } from './components/CameraSliders';
 import { PresetGallery } from './components/PresetGallery';
 import { geminiService } from './services/geminiService';
 
-// [Проблема] Ошибка TypeScript: "All declarations of 'aistudio' must have identical modifiers" и несоответствие типа.
-// [Диагностика] 'aistudio' в глобальном интерфейсе Window уже существует, но добавление модификатора readonly конфликтует с существующими декларациями в контексте окружения.
-// [Решение] Убираем модификатор readonly из расширения интерфейса Window для корректного объединения деклараций.
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
   interface Window {
-    aistudio: AIStudio;
+    // Fixed: Added 'readonly' modifier to match environment declaration and fix modifier conflict.
+    readonly aistudio: AIStudio;
   }
 }
 
@@ -41,7 +39,6 @@ const App: React.FC = () => {
       const hasKey = await window.aistudio.hasSelectedApiKey();
       if (!hasKey) {
         await window.aistudio.openSelectKey();
-        // Proceeding assuming selection was successful per rules
       }
     }
     setSettings(s => ({ ...s, ...updates }));
@@ -50,12 +47,21 @@ const App: React.FC = () => {
   const startGenerationFlow = useCallback(async () => {
     if (!sourceImage || isGenerating) return;
 
+    // Additional check to ensure API key is selected when using high-quality models.
+    if (settings.quality === 'pro') {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      if (!hasKey) {
+        await window.aistudio.openSelectKey();
+        // Proceed as per instructions: assume key selection was successful after triggering dialog.
+      }
+    }
+
     setIsGenerating(true);
     setError(null);
     setRetrySeconds(0);
 
     try {
-      const { imageUrl, groundingChunks } = await geminiService.generateImage(
+      const { imageUrl, modelResponse, groundingChunks } = await geminiService.generateImage(
         sourceImage, 
         generatedPrompt, 
         settings,
@@ -66,6 +72,7 @@ const App: React.FC = () => {
         id: Math.random().toString(36).substring(7),
         imageUrl,
         prompt: generatedPrompt,
+        modelResponse,
         timestamp: Date.now(),
         settings: { ...settings },
         cameraState: { ...cameraState },
@@ -77,10 +84,13 @@ const App: React.FC = () => {
     } catch (err: any) {
       const isQuota = err.message?.includes("QUOTA") || err.message?.includes("429");
       const isNotFound = err.message?.includes("Requested entity was not found");
+      const isSafety = err.message?.includes("SAFETY") || err.message?.includes("finishReason: SAFETY");
       
       if (isNotFound) {
         setError({ message: "Ошибка ключа доступа. Пожалуйста, выберите ключ заново.", type: 'key' });
         await window.aistudio.openSelectKey();
+      } else if (isSafety) {
+        setError({ message: "Блокировка системы безопасности: обнаружены критические изменения лица.", type: 'safety' });
       } else {
         setError({
           message: isQuota ? "Сервер перегружен. Лимит запросов исчерпан." : "Ошибка синтеза ракурса.",
@@ -128,7 +138,11 @@ const App: React.FC = () => {
               {isGenerating && <div className="absolute bottom-0 left-0 h-1 bg-white/30 animate-progress w-full" />}
             </button>
           </div>
-          <PromptConsole prompt={generatedPrompt} />
+          <PromptConsole 
+            prompt={generatedPrompt} 
+            modelResponse={result?.modelResponse} 
+            isGenerating={isGenerating} 
+          />
         </div>
 
         <aside className="flex flex-col gap-8">
@@ -136,7 +150,6 @@ const App: React.FC = () => {
             {result ? (
               <div className="w-full h-full relative">
                 <img src={result.imageUrl} className="w-full h-full object-cover" alt="Result" />
-                {/* [Фиксация] Отображение ссылок заземления (Grounding) при использовании Google Search */}
                 {result.groundingChunks && result.groundingChunks.length > 0 && (
                   <div className="absolute bottom-4 left-4 right-4 bg-black/70 backdrop-blur-md p-3 rounded-xl border border-white/10 max-h-[120px] overflow-y-auto">
                     <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Sources:</p>
