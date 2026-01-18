@@ -1,7 +1,6 @@
 
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { ImageData, GenerationSettings, GroundingChunk } from "../types";
-import { MODELS } from "../constants";
 
 export class GeminiService {
   async generateImage(
@@ -9,12 +8,12 @@ export class GeminiService {
     cameraPrompt: string,
     settings: GenerationSettings
   ): Promise<{ imageUrl: string; groundingChunks?: GroundingChunk[] }> {
-    // [FIX] Always create a new instance to ensure we use latest env key or selected key
+    // [FIX] Always create a fresh instance to use latest API key (process.env or user selected)
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // According to instructions: 
-    // gemini flash: 'gemini-2.5-flash-image'
-    // nano banana 2: 'gemini-3-pro-image-preview'
+    // Free Mode (flash): 'gemini-2.5-flash-image'
+    // Pro Mode: 'gemini-3-pro-image-preview'
     const modelName = settings.quality === 'pro' ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
     const imagePart = {
@@ -25,21 +24,13 @@ export class GeminiService {
     };
 
     const textPart = {
-      text: `[SYSTEM_KERNEL: IDENTITY_PRESERVATION_V7]
-OBJECTIVE: Reconstruct image from a new camera perspective while maintaining 100% biometric fidelity.
+      text: `[RECONSTRUCTION_KERNEL_V9]
+TRANSFORM: Generate new perspective from source.
+VIEWPORT_COMMAND: ${cameraPrompt}
+SEED_CONTROL: ${settings.seed}
+FIDELITY_MODE: IDENTITY_LOCK_ON
 
-PHASE 1: BIO-METRIC LOCK
-- Lock all primary features: interpupillary distance, facial bone structure, skin micro-texture.
-- No beautification. No alterations to age or ethnicity.
-
-PHASE 2: CAMERA RECONSTRUCTION
-- New Perspective Command: ${cameraPrompt}
-- Environment: ${settings.creativeContext || "Maintain original materials and lighting consistency."}
-
-CONSTRAINTS:
-- Render high-fidelity perspective shifts.
-- Recalculate shadows and reflections based on new orientation.
-- Seed: ${settings.seed}`
+CRITICAL: Maintain original person/object identity perfectly. No distortions.`
     };
 
     const config: any = {
@@ -50,7 +41,6 @@ CONSTRAINTS:
 
     if (settings.quality === 'pro') {
       config.imageConfig.imageSize = settings.imageSize || '1K';
-      // Search grounding is only for pro image models
       config.tools = [{ googleSearch: {} }];
     }
 
@@ -73,18 +63,20 @@ CONSTRAINTS:
         }
       }
 
-      if (!imageUrl) {
-        throw new Error("RECONSTRUCTION_FAULT: Model failed to generate pixel data. Check your image source.");
-      }
+      if (!imageUrl) throw new Error("EMPTY_PIXEL_DATA");
 
-      const groundingChunks = candidate?.groundingMetadata?.groundingChunks as GroundingChunk[];
-
-      return { imageUrl, groundingChunks };
+      return { 
+        imageUrl, 
+        groundingChunks: candidate?.groundingMetadata?.groundingChunks as GroundingChunk[] 
+      };
     } catch (error: any) {
-      // Re-throw with more context if it's a known quota error
-      if (error.status === 429 || error.message?.includes("429")) {
-        throw new Error("QUOTA_EXCEEDED: Бесплатные лимиты исчерпаны. Подождите минуту.");
+      console.error("Gemini API Error:", error);
+      
+      // Better error messaging for Free Tier users
+      if (error.message?.includes("429") || error.message?.includes("QUOTA")) {
+        throw new Error("QUOTA_LIMIT: Лимит бесплатного уровня исчерпан. Подождите минуту.");
       }
+      
       throw error;
     }
   }
