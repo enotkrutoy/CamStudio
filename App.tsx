@@ -18,8 +18,10 @@ declare global {
     openSelectKey: () => Promise<void>;
   }
   interface Window {
-    // Fixed: Added 'readonly' modifier to match environment declaration and fix modifier conflict.
-    readonly aistudio: AIStudio;
+    // [Проблема] TypeScript error in App.tsx on line 21: All declarations of 'aistudio' must have identical modifiers.
+    // [Диагностика] The 'readonly' modifier conflicts with existing global 'Window' interface extensions in the environment.
+    // [Решение] Remove the 'readonly' modifier to ensure consistency with other declarations of the 'aistudio' property.
+    aistudio: AIStudio;
   }
 }
 
@@ -44,15 +46,20 @@ const App: React.FC = () => {
     setSettings(s => ({ ...s, ...updates }));
   }, []);
 
+  const resetSession = useCallback(() => {
+    setSourceImage(null);
+    setResult(null);
+    setError(null);
+    resetCamera();
+  }, [resetCamera]);
+
   const startGenerationFlow = useCallback(async () => {
     if (!sourceImage || isGenerating) return;
 
-    // Additional check to ensure API key is selected when using high-quality models.
     if (settings.quality === 'pro') {
       const hasKey = await window.aistudio.hasSelectedApiKey();
       if (!hasKey) {
         await window.aistudio.openSelectKey();
-        // Proceed as per instructions: assume key selection was successful after triggering dialog.
       }
     }
 
@@ -105,10 +112,20 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans">
-      <div className="h-16 flex items-center px-8 border-b border-white/5 bg-black/40 backdrop-blur-md">
-        <div className="flex gap-8">
-          <button onClick={() => setActiveTab('3d')} className={`pb-5 border-b-2 transition-all font-bold text-sm ${activeTab === '3d' ? 'border-orange-500 text-orange-500' : 'border-transparent text-gray-500'}`}>Spatial 3D</button>
-          <button onClick={() => setActiveTab('sliders')} className={`pb-5 border-b-2 transition-all font-bold text-sm ${activeTab === 'sliders' ? 'border-orange-500 text-orange-500' : 'border-transparent text-gray-500'}`}>Sliders</button>
+      <div className="h-16 flex items-center justify-between px-8 border-b border-white/5 bg-black/40 backdrop-blur-md sticky top-0 z-[100]">
+        <div className="flex gap-8 h-full">
+          <button onClick={() => setActiveTab('3d')} className={`h-full border-b-2 transition-all font-bold text-[11px] uppercase tracking-widest ${activeTab === '3d' ? 'border-orange-500 text-orange-500' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>Spatial 3D</button>
+          <button onClick={() => setActiveTab('sliders')} className={`h-full border-b-2 transition-all font-bold text-[11px] uppercase tracking-widest ${activeTab === 'sliders' ? 'border-orange-500 text-orange-500' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>Sliders</button>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={resetSession}
+            className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            New Scan
+          </button>
         </div>
       </div>
 
@@ -127,14 +144,28 @@ const App: React.FC = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
-            <button onClick={resetCamera} className="bg-[#111111] border border-white/5 py-6 rounded-[2rem] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all">Reset View</button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button 
+              onClick={resetSession}
+              disabled={!sourceImage || isGenerating}
+              className="bg-white/5 border border-white/5 py-5 rounded-[2rem] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-all disabled:opacity-30 flex items-center justify-center gap-3"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              Eject
+            </button>
+            <button 
+              onClick={resetCamera} 
+              disabled={!sourceImage || isGenerating}
+              className="bg-[#111111] border border-white/5 py-5 rounded-[2rem] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all disabled:opacity-30"
+            >
+              Reset View
+            </button>
             <button 
               onClick={startGenerationFlow}
               disabled={!sourceImage || isGenerating}
-              className={`py-6 rounded-[2rem] font-black uppercase tracking-widest transition-all relative overflow-hidden ${(!sourceImage || isGenerating) ? 'bg-gray-800 text-gray-600' : 'bg-orange-600 text-white hover:bg-orange-500'}`}
+              className={`py-5 rounded-[2rem] font-black uppercase tracking-widest transition-all relative overflow-hidden ${(!sourceImage || isGenerating) ? 'bg-gray-800 text-gray-600' : 'bg-orange-600 text-white hover:bg-orange-500 shadow-[0_0_30px_rgba(234,88,12,0.3)]'}`}
             >
-              {retrySeconds > 0 ? `Retry in ${retrySeconds}s...` : (isGenerating ? 'Synthesizing...' : 'Reconstruct Perspective')}
+              {retrySeconds > 0 ? `Retry in ${retrySeconds}s...` : (isGenerating ? 'Synthesizing...' : 'Reconstruct')}
               {isGenerating && <div className="absolute bottom-0 left-0 h-1 bg-white/30 animate-progress w-full" />}
             </button>
           </div>
@@ -177,8 +208,8 @@ const App: React.FC = () => {
             {isGenerating && (
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 z-10">
                 <div className="w-10 h-10 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest text-center">
-                  {retrySeconds > 0 ? `Квота превышена. Ждем ${retrySeconds}с...` : 'Синтез изображения...'}
+                <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest text-center px-6">
+                  {retrySeconds > 0 ? `Квота превышена. Ждем ${retrySeconds}с...` : 'Выполнение высокоточной реставрации и синтеза...'}
                 </p>
               </div>
             )}
@@ -192,8 +223,8 @@ const App: React.FC = () => {
       {error && (
         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[300] w-full max-w-md px-4">
           <div className={`p-6 rounded-[2rem] border shadow-2xl bg-red-500/10 border-red-500/50 flex justify-between items-center backdrop-blur-xl`}>
-            <p className="text-[11px] font-black uppercase tracking-widest text-white">{error.message}</p>
-            <button onClick={() => setError(null)} className="text-white/40 hover:text-white ml-4">✕</button>
+            <p className="text-[11px] font-black uppercase tracking-widest text-white leading-tight">{error.message}</p>
+            <button onClick={() => setError(null)} className="text-white/40 hover:text-white ml-4 flex-shrink-0">✕</button>
           </div>
         </div>
       )}
