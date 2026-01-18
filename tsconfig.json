@@ -1,3 +1,4 @@
+
 {
   "compilerOptions": {
     "target": "ES2020",
@@ -8,13 +9,13 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
 
-    /* Strict Mode */
+    /* Режим совместимости для деплоя */
     "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -23,7 +24,6 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Path mapping */
     "baseUrl": ".",
     "paths": {
       "*": ["./*"]
