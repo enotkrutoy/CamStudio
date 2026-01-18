@@ -11,9 +11,6 @@ export class GeminiService {
     // [FIX] Always create a fresh instance to use latest API key (process.env or user selected)
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    // According to instructions: 
-    // Free Mode (flash): 'gemini-2.5-flash-image'
-    // Pro Mode: 'gemini-3-pro-image-preview'
     const modelName = settings.quality === 'pro' ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
     const imagePart = {
@@ -24,13 +21,16 @@ export class GeminiService {
     };
 
     const textPart = {
-      text: `[RECONSTRUCTION_KERNEL_V9]
-TRANSFORM: Generate new perspective from source.
+      text: `[RECONSTRUCTION_KERNEL_V11]
+TRANSFORM: Generate a high-fidelity new perspective from the source image.
 VIEWPORT_COMMAND: ${cameraPrompt}
 SEED_CONTROL: ${settings.seed}
-FIDELITY_MODE: IDENTITY_LOCK_ON
+STABILITY_MODE: IDENTITY_LOCK_ULTRA
 
-CRITICAL: Maintain original person/object identity perfectly. No distortions.`
+CORE_DIRECTIVE: 
+1. Maintain the exact likeness and identity of the subject from the source image.
+2. Adjust lighting, shadows, and parallax to match the new camera position.
+3. Ensure the environment looks consistent with the perspective shift.`
     };
 
     const config: any = {
@@ -41,6 +41,7 @@ CRITICAL: Maintain original person/object identity perfectly. No distortions.`
 
     if (settings.quality === 'pro') {
       config.imageConfig.imageSize = settings.imageSize || '1K';
+      // High-quality mode allows Google Search for context
       config.tools = [{ googleSearch: {} }];
     }
 
@@ -63,18 +64,25 @@ CRITICAL: Maintain original person/object identity perfectly. No distortions.`
         }
       }
 
-      if (!imageUrl) throw new Error("EMPTY_PIXEL_DATA");
+      if (!imageUrl) throw new Error("ENGINE_FAULT: Failed to decode pixel stream.");
+
+      const chunks = candidate?.groundingMetadata?.groundingChunks as GroundingChunk[];
 
       return { 
         imageUrl, 
-        groundingChunks: candidate?.groundingMetadata?.groundingChunks as GroundingChunk[] 
+        groundingChunks: chunks
       };
     } catch (error: any) {
       console.error("Gemini API Error:", error);
       
-      // Better error messaging for Free Tier users
+      // Handle Quota
       if (error.message?.includes("429") || error.message?.includes("QUOTA")) {
-        throw new Error("QUOTA_LIMIT: Лимит бесплатного уровня исчерпан. Подождите минуту.");
+        throw new Error("QUOTA_LIMIT: Лимит бесплатных запросов исчерпан. Пожалуйста, подождите 60 секунд.");
+      }
+      
+      // Handle Missing Project (API Key Error)
+      if (error.message?.includes("Requested entity was not found")) {
+        throw new Error("AUTH_ERROR: Выбранный проект или ключ не найден. Пожалуйста, переподключите API-ключ.");
       }
       
       throw error;

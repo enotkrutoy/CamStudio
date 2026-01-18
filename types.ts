@@ -1,5 +1,4 @@
 
-
 export interface CameraControlState {
   rotate: number; // -90 to 90
   forward: number; // 0 to 10
@@ -30,6 +29,10 @@ export interface ImageData {
 
 export interface GroundingChunk {
   web?: {
+    uri: string;
+    title: string;
+  };
+  maps?: {
     uri: string;
     title: string;
   };
