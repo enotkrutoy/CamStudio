@@ -1,4 +1,5 @@
 
+
 export interface CameraControlState {
   rotate: number; // -90 to 90
   forward: number; // 0 to 10
@@ -40,7 +41,7 @@ export interface GroundingChunk {
 
 export interface GenerationResult {
   id: string;
-  imageUrl: string;
+  imageUrl?: string;
   prompt: string;
   modelResponse?: string;
   timestamp: number;
@@ -57,4 +58,17 @@ export interface PresetDefinition {
   icon: string;
   state: Partial<CameraControlState>;
   description: string;
+}
+
+// FIX: Renamed interface to AIStudio to match existing global type declarations and avoid type collision.
+export interface AIStudio {
+  hasSelectedApiKey: () => Promise<boolean>;
+  openSelectKey: () => Promise<void>;
+}
+
+declare global {
+  interface Window {
+    // FIX: Updated to type AIStudio to satisfy TS compiler requirement for global Window augmentation.
+    aistudio?: AIStudio;
+  }
 }

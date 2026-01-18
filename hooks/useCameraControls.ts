@@ -46,39 +46,44 @@ export const useCameraControls = () => {
   const buildCameraPrompt = useCallback((s: CameraControlState): string => {
     const segments: string[] = [];
 
-    // Special Case: Dolly Zoom / Cinematic Effect
-    if (s.wideAngle && s.forward > 6 && Math.abs(s.rotate) < 10 && Math.abs(s.tilt) < 0.2) {
-      return "DOLLY_ZOOM_RECONSTRUCTION: Simulate a Hitchcock 'Vertigo' effect. Fast camera movement towards subject while simultaneously widening field-of-view (12mm). Background should appear to peel away while subject remains fixed size. Hyper-realistic parallax.";
-    }
-
+    // Feature: Zero-G Levitation
     if (s.floating) {
-      segments.push("PHYSICS_OVERRIDE: Enable zero-gravity levitation for the subject. Offset height: +60cm from ground. Add ethereal sub-surface scattering and soft atmospheric haze beneath the subject. No contact points.");
+      segments.push("GRAVITY_OFF: The subject is suspended in mid-air, 50cm above the surface. Shadows are detached and softened. Hair and loose fabric exhibit slight micro-gravity behavior.");
     }
 
-    if (s.rotate !== 0) {
-      const direction = s.rotate > 0 ? "clockwise" : "counter-clockwise";
-      segments.push(`AZIMUTH_TRANSFORM: Pivot camera ${Math.abs(s.rotate)}° ${direction}. Recalculate volumetric lighting and ray-traced reflections based on the new angular position.`);
-    }
-
-    if (s.forward > 8) {
-      segments.push("MACRO_FOCUS: Distance < 30cm. Shallow depth of field (f/1.4). Focus on micro-textures and intricate surface details. High-frequency detail enhancement.");
-    } else if (s.forward > 3) {
-      segments.push(`DOLLY_IN: Move camera to ${10 - s.forward}m distance. Compress spatial depth, increase subject presence.`);
-    }
-
-    if (s.tilt > 0.5) {
-      segments.push("ZENITH_PERSPECTIVE: Extreme top-down angle. Flatten subject proportions, emphasize floor geometry and layout patterns.");
-    } else if (s.tilt < -0.5) {
-      segments.push("LOW_ANGLE_HERO: Extreme upward tilt. Exaggerate vertical scale and power dynamics. Lengthen perspective lines.");
-    }
-
+    // Perspective & Lens Profile
     if (s.wideAngle) {
-      segments.push("OPTICS: 14mm rectilinear ultra-wide lens profile. Intentional corner stretching, enhanced peripheral vision, deep focus across all planes.");
+      segments.push("ULTRA_WIDE_OPTICS: 14mm focal length. Exaggerated perspective, rectilinear distortion at frame edges, expanded peripheral space. Foreground subject dominates the composition.");
     } else {
-      segments.push("OPTICS: 85mm portrait telephoto lens profile. Flat perspective, natural compression, creamy bokeh on background elements.");
+      segments.push("PORTRAIT_TELEPHOTO: 85mm prime lens. Compressed depth, minimal facial distortion, buttery bokeh (f/1.2) separating subject from background.");
     }
 
-    return segments.length > 0 ? segments.join(" ") : "no camera movement";
+    // Azimuth / Rotation
+    if (Math.abs(s.rotate) > 5) {
+      const dir = s.rotate > 0 ? "right" : "left";
+      segments.push(`AZIMUTH_SHIFT: Pivot camera ${Math.abs(s.rotate)} degrees to the ${dir}. Reveal hidden facets of the subject's profile. Adjust light falloff on the shadowed side.`);
+    }
+
+    // Depth / Dolly
+    if (s.forward > 7.5) {
+      segments.push("EXTREME_CLOSE_UP: Macro focusing. Pores, iris details, and fine textures are enhanced. Depth of field is razor-thin.");
+    } else if (s.forward > 2) {
+      segments.push(`DOLLY_IN: Move camera significantly closer. The background recedes as the subject fills the frame.`);
+    }
+
+    // Pitch / Tilt
+    if (s.tilt > 0.6) {
+      segments.push("TOP_DOWN_ZENITH: Camera is positioned directly above. Emphasize vertical symmetry and the top-down geometry of the head and shoulders.");
+    } else if (s.tilt < -0.6) {
+      segments.push("LOW_ANGLE_MIGHT: Shooting from below. Subject appears towering and heroic. Perspective lines converge upward.");
+    }
+
+    // Special: Cinematic "Dolly Zoom" if conditions met
+    if (s.wideAngle && s.forward > 5 && Math.abs(s.rotate) < 15) {
+      return "CINEMATIC_DOLLY_ZOOM: Execute a Hitchcockian Vertigo effect. Background stretches and warps while the subject remains locked in scale. High-intensity parallax shift.";
+    }
+
+    return segments.length > 0 ? segments.join(" ") : "STANDARD_EYE_LEVEL_SCAN: Maintain original perspective with high-fidelity texture pass.";
   }, []);
 
   const generatedPrompt = useMemo(() => buildCameraPrompt(state), [state, buildCameraPrompt]);

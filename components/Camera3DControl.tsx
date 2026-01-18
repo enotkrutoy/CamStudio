@@ -8,41 +8,41 @@ interface Props {
   state: CameraControlState;
   sourceImage: ImageData | null;
   onChange: (updates: Partial<CameraControlState>) => void;
+  onReplace?: () => void;
   activePreset?: CameraPreset;
 }
 
-export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange, activePreset }) => {
+export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange, onReplace, activePreset }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const requestRef = useRef<number | null>(null);
+  
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  
   const modelCameraRef = useRef<THREE.Group | null>(null);
   const photoPlaneRef = useRef<THREE.Mesh | null>(null);
+  const frustumRef = useRef<THREE.LineSegments | null>(null);
   
-  // HUD Arcs
   const rotationArcRef = useRef<THREE.Line | null>(null);
-  const tiltArcRef = useRef<THREE.Line | null>(null);
-  const distanceLineRef = useRef<THREE.Line | null>(null);
-  
-  const rotationNodeRef = useRef<THREE.Mesh | null>(null);
-  const tiltNodeRef = useRef<THREE.Mesh | null>(null);
-  const distanceNodeRef = useRef<THREE.Mesh | null>(null);
 
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
   const currentPresetLabel = useMemo(() => {
-    return PRESET_LIST.find(p => p.id === activePreset)?.label || "Custom View";
-  }, [activePreset]);
+    // Check if current state matches any preset, else "Custom View"
+    const matched = PRESET_LIST.find(p => p.id === activePreset);
+    return matched?.label || "Manual Sync";
+  }, [activePreset, state]);
 
+  // Texture Loader logic
   useEffect(() => {
     if (photoPlaneRef.current && sourceImage) {
       const loader = new THREE.TextureLoader();
       loader.load(sourceImage.base64, (texture) => {
         if (photoPlaneRef.current) {
-          (photoPlaneRef.current.material as THREE.MeshBasicMaterial).map = texture;
-          (photoPlaneRef.current.material as THREE.MeshBasicMaterial).needsUpdate = true;
+          const mat = photoPlaneRef.current.material as THREE.MeshBasicMaterial;
+          mat.map = texture;
+          mat.needsUpdate = true;
           photoPlaneRef.current.visible = true;
         }
       });
@@ -53,11 +53,11 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     if (!containerRef.current) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x060606);
+    scene.background = new THREE.Color(0x050505);
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(40, containerRef.current.clientWidth / containerRef.current.clientHeight, 0.1, 1000);
-    camera.position.set(16, 14, 16);
+    const camera = new THREE.PerspectiveCamera(35, containerRef.current.clientWidth / containerRef.current.clientHeight, 0.1, 1000);
+    camera.position.set(18, 15, 18);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
@@ -67,146 +67,143 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     containerRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Grid
-    const grid = new THREE.GridHelper(30, 20, 0x333333, 0x111111);
+    // Grid & Lighting
+    const grid = new THREE.GridHelper(40, 40, 0x1a1a1a, 0x0a0a0a);
     scene.add(grid);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    const spot = new THREE.SpotLight(0xff9900, 100, 100, 0.3);
+    spot.position.set(10, 20, 10);
+    scene.add(spot);
 
-    // Photo Plane
-    const photoGeo = new THREE.PlaneGeometry(4, 5.5);
+    // Subject Plane
     const photoMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
-    const photoPlane = new THREE.Mesh(photoGeo, photoMat);
+    const photoPlane = new THREE.Mesh(new THREE.PlaneGeometry(5, 7), photoMat);
     scene.add(photoPlane);
     photoPlaneRef.current = photoPlane;
 
-    // Camera Model
-    const cameraGroup = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.9), new THREE.MeshStandardMaterial({ color: 0x222222 }));
-    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.7, 32), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+    // Virtual Camera Model
+    const camGroup = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.9, 1.0), new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.2 }));
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.8, 32), new THREE.MeshStandardMaterial({ color: 0x050505 }));
     lens.rotation.x = Math.PI / 2;
-    lens.position.z = 0.6;
-    cameraGroup.add(body, lens);
-    scene.add(cameraGroup);
-    modelCameraRef.current = cameraGroup;
+    lens.position.z = 0.7;
+    camGroup.add(body, lens);
+    
+    // Frustum Visualizer
+    const frustumGeo = new THREE.EdgesGeometry(new THREE.ConeGeometry(1, 4, 4));
+    const frustumMat = new THREE.LineBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.3 });
+    const frustum = new THREE.LineSegments(frustumGeo, frustumMat);
+    frustum.rotation.x = -Math.PI / 2;
+    frustum.position.z = 2.5;
+    camGroup.add(frustum);
+    frustumRef.current = frustum;
 
-    // Arcs Construction
-    const createArc = (color: number) => {
-      const geometry = new THREE.BufferGeometry();
-      const material = new THREE.LineBasicMaterial({ color, linewidth: 2, transparent: true, opacity: 0.5 });
-      return new THREE.Line(geometry, material);
-    };
+    scene.add(camGroup);
+    modelCameraRef.current = camGroup;
 
-    const rotArc = createArc(0x00ffcc); scene.add(rotArc); rotationArcRef.current = rotArc;
-    const tArc = createArc(0xff66cc); scene.add(tArc); tiltArcRef.current = tArc;
-    const distLine = createArc(0xffaa00); scene.add(distLine); distanceLineRef.current = distLine;
-
-    // Nodes
-    const createNode = (color: number) => new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshBasicMaterial({ color }));
-    const rotNode = createNode(0x00ffcc); scene.add(rotNode); rotationNodeRef.current = rotNode;
-    const tNode = createNode(0xff66cc); scene.add(tNode); tiltNodeRef.current = tNode;
-    const distNode = createNode(0xffcc00); scene.add(distNode); distanceNodeRef.current = distNode;
-
-    // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const pointLight = new THREE.PointLight(0xffffff, 2);
-    pointLight.position.set(10, 20, 10);
-    scene.add(pointLight);
+    // Rotation Arc
+    const rotGeo = new THREE.BufferGeometry();
+    const rotArc = new THREE.Line(rotGeo, new THREE.LineBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.15 }));
+    scene.add(rotArc);
+    rotationArcRef.current = rotArc;
 
     let isDragging = false;
     let prevX = 0, prevY = 0;
 
-    const handleDown = (clientX: number, clientY: number) => { isDragging = true; prevX = clientX; prevY = clientY; };
-    const handleMove = (clientX: number, clientY: number) => {
+    const onMouseDown = (e: MouseEvent) => { isDragging = true; prevX = e.clientX; prevY = e.clientY; };
+    const onMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
-      const dx = clientX - prevX;
-      const dy = clientY - prevY;
+      const dx = e.clientX - prevX;
+      const dy = e.clientY - prevY;
       onChange({ 
-        rotate: Math.max(ROTATE_LIMITS.min, Math.min(ROTATE_LIMITS.max, stateRef.current.rotate + dx * 0.5)),
-        tilt: Math.max(TILT_LIMITS.min, Math.min(TILT_LIMITS.max, stateRef.current.tilt - dy * 0.01))
+        rotate: Math.max(ROTATE_LIMITS.min, Math.min(ROTATE_LIMITS.max, stateRef.current.rotate + dx * 0.4)),
+        tilt: Math.max(TILT_LIMITS.min, Math.min(TILT_LIMITS.max, stateRef.current.tilt - dy * 0.008))
       });
-      prevX = clientX; prevY = clientY;
+      prevX = e.clientX; prevY = e.clientY;
     };
+    const onMouseUp = () => { isDragging = false; };
 
     const canvas = renderer.domElement;
-    canvas.addEventListener('mousedown', (e) => handleDown(e.clientX, e.clientY));
-    window.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
-    window.addEventListener('mouseup', () => isDragging = false);
-    
+    canvas.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
     const animate = () => {
-      if (!rendererRef.current || !sceneRef.current || !cameraRef.current) return;
-      requestAnimationFrame(animate);
-      rendererRef.current.render(sceneRef.current, cameraRef.current);
+      if (rendererRef.current && sceneRef.current && cameraRef.current) {
+        rendererRef.current.render(sceneRef.current, cameraRef.current);
+      }
+      requestRef.current = requestAnimationFrame(animate);
     };
     animate();
 
-    return () => renderer.dispose();
-  }, [onChange]);
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      canvas.removeEventListener('mousedown', onMouseDown);
+      renderer.dispose();
+      scene.traverse((obj: any) => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach((m: any) => m.dispose());
+          else obj.material.dispose();
+        }
+      });
+    };
+  }, []);
 
   useEffect(() => {
     if (!modelCameraRef.current || !photoPlaneRef.current) return;
 
     const angle = THREE.MathUtils.degToRad(state.rotate);
-    const dist = 10 - state.forward * 0.7;
-    const camY = state.tilt * 7;
+    const dist = 11 - state.forward * 0.8;
+    const camY = state.tilt * 8;
     
-    // Position Camera
     modelCameraRef.current.position.set(Math.sin(angle) * dist, camY, Math.cos(angle) * dist);
-    modelCameraRef.current.lookAt(0, state.floating ? 2.5 : 0, 0);
+    modelCameraRef.current.lookAt(0, state.floating ? 3 : 0, 0);
 
-    // Apply Floating Visuals
-    const targetY = state.floating ? 2.5 : 0;
-    photoPlaneRef.current.position.y = THREE.MathUtils.lerp(photoPlaneRef.current.position.y, targetY, 0.1);
+    photoPlaneRef.current.position.y = state.floating ? 3 : 0;
 
-    // Update Rotation Arc (Cyan)
+    // Update Rotation Guideline
     const rotPoints = [];
     for(let i = -90; i <= 90; i+=2) {
       const a = THREE.MathUtils.degToRad(i);
-      rotPoints.push(new THREE.Vector3(Math.sin(a) * 8.5, 0, Math.cos(a) * 8.5));
+      rotPoints.push(new THREE.Vector3(Math.sin(a) * dist, 0, Math.cos(a) * dist));
     }
     rotationArcRef.current?.geometry.setFromPoints(rotPoints);
-    rotationNodeRef.current?.position.set(Math.sin(angle) * 8.5, 0, Math.cos(angle) * 8.5);
+    if (rotationArcRef.current) rotationArcRef.current.position.y = camY;
 
-    // Update Tilt Arc (Pink)
-    const tiltPoints = [];
-    for(let i = -1; i <= 1; i+=0.1) {
-      const a = THREE.MathUtils.degToRad(state.rotate);
-      tiltPoints.push(new THREE.Vector3(Math.sin(a) * dist, i * 7, Math.cos(a) * dist));
+    // Adjust frustum based on wideAngle
+    if (frustumRef.current) {
+      const scale = state.wideAngle ? 2.5 : 1.0;
+      frustumRef.current.scale.set(scale, scale, 1);
     }
-    tiltArcRef.current?.geometry.setFromPoints(tiltPoints);
-    tiltNodeRef.current?.position.copy(modelCameraRef.current.position).multiplyScalar(0.95);
-    if (tiltNodeRef.current) tiltNodeRef.current.position.y = camY;
-
-    // Update Distance Line (Orange)
-    distanceLineRef.current?.geometry.setFromPoints([new THREE.Vector3(0, targetY, 0), modelCameraRef.current.position]);
-    distanceNodeRef.current?.position.copy(modelCameraRef.current.position).multiplyScalar(0.5);
-
   }, [state]);
 
   return (
-    <div className="relative w-full h-full bg-[#060606] rounded-3xl overflow-hidden border border-white/5 shadow-2xl">
-      <div ref={containerRef} className="w-full h-full cursor-move" />
+    <div className="relative w-full h-full bg-[#050505] rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl">
+      <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
       
-      <div className="absolute top-6 left-6 pointer-events-none">
-        <div className="bg-black/60 backdrop-blur-xl p-4 rounded-2xl border border-white/10 space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-[#00ffcc]" />
-            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Rotation Axis</span>
+      {sourceImage && (
+        <button 
+          onClick={onReplace}
+          className="absolute top-8 right-8 bg-black/60 hover:bg-black/90 backdrop-blur-2xl px-5 py-3 rounded-2xl border border-white/10 flex items-center gap-3 transition-all group z-10"
+        >
+          <div className="w-6 h-6 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-[#ff66cc]" />
-            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Vertical Pitch</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-[#ffaa00]" />
-            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Optical Distance</span>
-          </div>
-        </div>
-      </div>
+          <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white">Change Scan</span>
+        </button>
+      )}
 
-      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 pointer-events-none">
-        <div className="bg-black/80 backdrop-blur-2xl px-6 py-2.5 rounded-full border border-white/10 shadow-2xl flex items-center gap-4">
-          <div className={`w-2 h-2 rounded-full ${state.floating ? 'bg-blue-500 animate-pulse' : 'bg-gray-700'}`} />
-          <span className="text-[10px] font-mono font-black text-white uppercase tracking-[0.2em]">
-            {currentPresetLabel} {state.floating ? '// LEVITATION_ON' : ''}
+      <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none">
+        <div className="bg-black/90 backdrop-blur-3xl px-8 py-3 rounded-full border border-orange-500/20 shadow-2xl flex items-center gap-5">
+          <div className="flex gap-1.5">
+             <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+             <div className="w-1.5 h-1.5 rounded-full bg-orange-500/40" />
+          </div>
+          <span className="text-[10px] font-mono font-black text-white uppercase tracking-[0.3em]">
+            {currentPresetLabel} // {state.floating ? 'LEV_MOD_1' : 'GRND_LOK'}
           </span>
         </div>
       </div>

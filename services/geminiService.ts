@@ -2,39 +2,18 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { ImageData, GenerationSettings, GroundingChunk } from "../types";
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 2;
 const INITIAL_BACKOFF = 2000;
 
-const SYSTEM_INSTRUCTION = `Проанализируй входное изображение и сначала создай краткое, точное и нейтральное описание изображения, 
-основанное только на визуальных фактах, без домыслов, без предположений о личности, возрасте или эмоциях.
+const SYSTEM_INSTRUCTION = `Вы — высокоточный движок пространственного интеллекта. Ваша задача: выполнить техническую реконструкцию исходного изображения на основе предоставленной телеметрии камеры.
 
-Описание должно включать только:
-• что именно изображено  
-• ключевые визуальные детали (форма, цвет, структура)  
-• освещение и фон  
-• наличие артефактов (пиксели, шум, сжатие)  
-• общую композицию  
-
-Не добавляй ничего, что нельзя однозначно увидеть.
-Не указывай имена людей.
-Не делай оценочных суждений.
-Важно! "CRITICAL IDENTITY LOCK" для максимального сохранения черт лица.
-
-На основе созданного тобой описания выполни высокоточную реставрацию изображения, 
-не изменяя личность, внешность, черты лица, форму головы, пропорции, 
-выражение, возраст, причёску, стиль или композицию.
-
-Требования к улучшению:
-• Убрать пикселизацию, шумы, блоки сжатия, размытия, цифровые артефактов.
-• Повысить чёткость, естественность и микродетализацию без «перерисовки».
-• Сохранить текстуру кожи, структуру волос, форму глаз, губ, носа и другие особенности.
-• Не добавлять новых объектов, теней, макияжа, украшений или элементов одежды.
-• Не менять освещение, цветовую температуру, ракурс и атмосферу.
-• Восстановить фон: сделать его плавным и естественным, без артефактов и без генерации новых деталей.
-• Улучшать только то, что логично восстанавливается из оригинальных пикселей.
-
-Результат должен выглядеть как тот же самый снимок, но технически улучшенный: 
-чёткий, чистый, без искажений, без искусственности и без изменений внешности.`;
+ПРАВИЛА ОБРАБОТКИ:
+1. Описание (RU): Сначала предоставьте краткий технический анализ новой геометрии сцены, освещения и перспективы.
+2. Синтез: Создайте НОВОЕ изображение, точно соответствующее перемещению камеры.
+3. IDENTITY LOCK: Запрещено изменять костную структуру лица, цвет глаз или этническую принадлежность. Личность должна быть 100% узнаваема.
+4. ОПТИКА: Имитируйте физические свойства линз (дисторсия краев для 14mm, сжатие планов для 85mm).
+5. КАЧЕСТВО: Устраните шумы, восстановите микро-текстуры кожи и волос.
+6. Выходное изображение должно быть строго 1:1.`;
 
 export class GeminiService {
   private async sleep(ms: number) {
@@ -46,15 +25,16 @@ export class GeminiService {
     cameraPrompt: string,
     settings: GenerationSettings,
     onRetry?: (seconds: number) => void
-  ): Promise<{ imageUrl: string; modelResponse?: string; groundingChunks?: GroundingChunk[] }> {
+  ): Promise<{ imageUrl?: string; modelResponse?: string; groundingChunks?: GroundingChunk[] }> {
     let lastError: any;
+    
+    // Create fresh instance to pick up latest API key
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const isPro = settings.quality === 'pro';
+    const modelName = isPro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const isPro = settings.quality === 'pro';
-        const modelName = isPro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
-        
         const imagePart = {
           inlineData: {
             mimeType: sourceImage.mimeType,
@@ -64,19 +44,22 @@ export class GeminiService {
 
         const textPart = {
           text: `[RECONSTRUCTION_TASK]
-SPATIAL_TELEMETRY: ${cameraPrompt}
-SEED_KEY: ${settings.seed}
-STABILITY_MODE: CRITICAL IDENTITY LOCK
-CONTEXT: ${settings.creativeContext || "High-fidelity spatial reconstruction"}`
+TELEMETRY: ${cameraPrompt}
+ENGINE_SEED: ${settings.seed}
+ENVIRONMENT_BIAS: ${settings.creativeContext || "Cinematic Studio Lighting"}
+OUTPUT_MODE: HIGH_FIDELITY_SPATIAL_SYNC`
         };
 
         const config: any = {
-          imageConfig: { aspectRatio: "1:1" },
+          imageConfig: { 
+            aspectRatio: "1:1",
+            imageSize: isPro ? (settings.imageSize || '1K') : undefined
+          },
           systemInstruction: SYSTEM_INSTRUCTION
         };
 
+        // Google Search is only available for Gemini 3 Pro
         if (isPro) {
-          config.imageConfig.imageSize = settings.imageSize || '1K';
           config.tools = [{ googleSearch: {} }];
         }
 
@@ -86,7 +69,7 @@ CONTEXT: ${settings.creativeContext || "High-fidelity spatial reconstruction"}`
           config
         });
 
-        let imageUrl = '';
+        let imageUrl: string | undefined = undefined;
         let modelResponse = '';
         const candidate = response.candidates?.[0];
         
@@ -100,27 +83,30 @@ CONTEXT: ${settings.creativeContext || "High-fidelity spatial reconstruction"}`
           }
         }
 
-        if (!imageUrl) {
-          console.warn("Model returned text but no image. Likely safety block or logic error.", modelResponse);
-          throw new Error("EMPTY_IMAGE_RESPONSE");
-        }
-
         return { 
           imageUrl, 
-          modelResponse: modelResponse.trim(),
+          modelResponse: modelResponse || response.text || '',
           groundingChunks: candidate?.groundingMetadata?.groundingChunks as GroundingChunk[]
         };
 
       } catch (error: any) {
         lastError = error;
-        const isRateLimit = error.message?.includes("429") || error.message?.includes("QUOTA");
+        const msg = error.message?.toLowerCase() || '';
         
+        // Handle rate limits with backoff
+        const isRateLimit = msg.includes("429") || msg.includes("quota");
         if (isRateLimit && attempt < MAX_RETRIES - 1) {
-          const waitTime = INITIAL_BACKOFF * Math.pow(2, attempt);
+          const waitTime = INITIAL_BACKOFF * (attempt + 1);
           if (onRetry) onRetry(Math.ceil(waitTime / 1000));
           await this.sleep(waitTime);
           continue;
         }
+
+        // Special handling for Key errors to trigger re-selection in App component
+        if (msg.includes("not found") || msg.includes("api key") || msg.includes("authentication")) {
+          throw new Error("AUTH_REQUIRED");
+        }
+
         break;
       }
     }
