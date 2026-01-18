@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { GenerationSettings, ImageData, GenerationResult, CameraPreset, GroundingChunk } from './types';
 import { DEFAULT_SETTINGS } from './constants';
@@ -134,10 +133,9 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (retryTimer > 0) {
-      const t = setInterval(() => setRetryTimer(prev => prev - 1), 1000);
-      return () => clearInterval(t);
-    }
+    if (retryTimer <= 0) return;
+    const t = setInterval(() => setRetryTimer(prev => prev - 1), 1000);
+    return () => clearInterval(t);
   }, [retryTimer]);
 
   const handleSelectKey = async () => {

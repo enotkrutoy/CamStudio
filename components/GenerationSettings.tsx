@@ -1,7 +1,5 @@
-
 import React, { useState } from 'react';
 import { GenerationSettings, ImageSize } from '../types';
-import { STEPS_LIMITS } from '../constants';
 
 interface Props {
   settings: GenerationSettings;
