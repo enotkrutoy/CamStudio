@@ -13,15 +13,15 @@ import { PresetGallery } from './components/PresetGallery';
 import { geminiService } from './services/geminiService';
 
 // [Проблема] Ошибка TypeScript: "All declarations of 'aistudio' must have identical modifiers" и несоответствие типа.
-// [Диагностика] 'aistudio' в глобальном интерфейсе Window уже существует как readonly свойство типа AIStudio.
-// [Решение] Определяем интерфейс AIStudio и объявляем расширение Window с использованием модификатора readonly и корректного имени типа.
+// [Диагностика] 'aistudio' в глобальном интерфейсе Window уже существует, но добавление модификатора readonly конфликтует с существующими декларациями в контексте окружения.
+// [Решение] Убираем модификатор readonly из расширения интерфейса Window для корректного объединения деклараций.
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
   interface Window {
-    readonly aistudio: AIStudio;
+    aistudio: AIStudio;
   }
 }
 
@@ -91,7 +91,7 @@ const App: React.FC = () => {
       setIsGenerating(false);
       setRetrySeconds(0);
     }
-  }, [sourceImage, i    sGenerating, generatedPrompt, settings, cameraState]);
+  }, [sourceImage, isGenerating, generatedPrompt, settings, cameraState]);
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans">
@@ -134,12 +134,35 @@ const App: React.FC = () => {
         <aside className="flex flex-col gap-8">
           <div className="relative aspect-square rounded-[3rem] bg-black border border-white/5 overflow-hidden flex items-center justify-center group shadow-2xl">
             {result ? (
-              <img src={result.imageUrl} className="w-full h-full object-cover" alt="Result" />
+              <div className="w-full h-full relative">
+                <img src={result.imageUrl} className="w-full h-full object-cover" alt="Result" />
+                {/* [Фиксация] Отображение ссылок заземления (Grounding) при использовании Google Search */}
+                {result.groundingChunks && result.groundingChunks.length > 0 && (
+                  <div className="absolute bottom-4 left-4 right-4 bg-black/70 backdrop-blur-md p-3 rounded-xl border border-white/10 max-h-[120px] overflow-y-auto">
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Sources:</p>
+                    <div className="flex flex-col gap-1">
+                      {result.groundingChunks.map((chunk, idx) => (
+                        chunk.web && (
+                          <a 
+                            key={idx} 
+                            href={chunk.web.uri} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-[9px] text-blue-400 hover:underline truncate"
+                          >
+                            {chunk.web.title || chunk.web.uri}
+                          </a>
+                        )
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="text-gray-800 font-black uppercase text-[10px] tracking-[0.4em] animate-pulse">Waiting for Signal</div>
             )}
             {isGenerating && (
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 z-10">
                 <div className="w-10 h-10 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
                 <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest text-center">
                   {retrySeconds > 0 ? `Квота превышена. Ждем ${retrySeconds}с...` : 'Синтез изображения...'}
