@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GenerationSettings, ImageData, GenerationResult, CameraPreset } from './types';
 import { DEFAULT_SETTINGS } from './constants';
 import { useCameraControls } from './hooks/useCameraControls';
