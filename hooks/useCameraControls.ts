@@ -21,22 +21,6 @@ export const useCameraControls = () => {
     });
   }, []);
 
-  const undo = useCallback(() => {
-    if (past.length === 0) return;
-    const previous = past[past.length - 1];
-    setFuture(f => [state, ...f]);
-    setPast(past.slice(0, past.length - 1));
-    setState(previous);
-  }, [past, state]);
-
-  const redo = useCallback(() => {
-    if (future.length === 0) return;
-    const next = future[0];
-    setPast(p => [...p, state]);
-    setFuture(future.slice(1));
-    setState(next);
-  }, [future, state]);
-
   const reset = useCallback(() => {
     setPast(p => [...p, state]);
     setFuture([]);
@@ -44,46 +28,42 @@ export const useCameraControls = () => {
   }, [state]);
 
   const buildCameraPrompt = useCallback((s: CameraControlState): string => {
+    // PHASE 1: IDENTITY LOCK (Preserve Biometrics)
+    const identityLock = "IDENTITY_RECONSTRUCTION_MODE: Keep the person's face structure, facial hair, skin pores, and eye color 100% consistent with the source. Do not beautify or alter bone structure.";
+    
+    // PHASE 2: SPATIAL TRANSFORMATION (Mathematics of the angle)
     const segments: string[] = [];
-
-    // Feature: Zero-G Levitation
-    if (s.floating) {
-      segments.push("GRAVITY_OFF: The subject is suspended in mid-air, 50cm above the surface. Shadows are detached and softened. Hair and loose fabric exhibit slight micro-gravity behavior.");
+    const angle = Math.abs(s.rotate);
+    const dir = s.rotate > 0 ? "right" : "left";
+    
+    if (angle > 5) {
+      segments.push(`SPATIAL_ORBIT: Rotate camera ${angle} degrees to the ${dir}. Calculate the correct ear-to-nose perspective ratio for this specific rotation.`);
     }
 
-    // Perspective & Lens Profile
-    if (s.wideAngle) {
-      segments.push("ULTRA_WIDE_OPTICS: 14mm focal length. Exaggerated perspective, rectilinear distortion at frame edges, expanded peripheral space. Foreground subject dominates the composition.");
-    } else {
-      segments.push("PORTRAIT_TELEPHOTO: 85mm prime lens. Compressed depth, minimal facial distortion, buttery bokeh (f/1.2) separating subject from background.");
-    }
-
-    // Azimuth / Rotation
-    if (Math.abs(s.rotate) > 5) {
-      const dir = s.rotate > 0 ? "right" : "left";
-      segments.push(`AZIMUTH_SHIFT: Pivot camera ${Math.abs(s.rotate)} degrees to the ${dir}. Reveal hidden facets of the subject's profile. Adjust light falloff on the shadowed side.`);
-    }
-
-    // Depth / Dolly
-    if (s.forward > 7.5) {
-      segments.push("EXTREME_CLOSE_UP: Macro focusing. Pores, iris details, and fine textures are enhanced. Depth of field is razor-thin.");
-    } else if (s.forward > 2) {
-      segments.push(`DOLLY_IN: Move camera significantly closer. The background recedes as the subject fills the frame.`);
-    }
-
-    // Pitch / Tilt
     if (s.tilt > 0.6) {
-      segments.push("TOP_DOWN_ZENITH: Camera is positioned directly above. Emphasize vertical symmetry and the top-down geometry of the head and shoulders.");
+      segments.push("ZENITH_VIEW: Camera positioned at 90 degrees above the subject. Emphasize the top of the head and shoulder line.");
     } else if (s.tilt < -0.6) {
-      segments.push("LOW_ANGLE_MIGHT: Shooting from below. Subject appears towering and heroic. Perspective lines converge upward.");
+      segments.push("HERO_SHOT_LOW_ANGLE: Position camera near floor level looking up. Exaggerate chin and neck-line power while maintaining facial recognition.");
     }
 
-    // Special: Cinematic "Dolly Zoom" if conditions met
-    if (s.wideAngle && s.forward > 5 && Math.abs(s.rotate) < 15) {
-      return "CINEMATIC_DOLLY_ZOOM: Execute a Hitchcockian Vertigo effect. Background stretches and warps while the subject remains locked in scale. High-intensity parallax shift.";
+    // PHASE 3: OPTICAL PROFILE (Lens Physics)
+    const optics = s.wideAngle 
+      ? "LENS_PROFILE: 14mm rectilinear wide-angle. Edge stretching active. High environmental context."
+      : "LENS_PROFILE: 85mm prime. Compressed background. Shallow depth of field (f/1.4). Focal plane locked on eyes.";
+
+    // PHASE 4: PHYSICS OVERRIDES
+    if (s.floating) {
+      segments.push("PHYSICS_OVERRIDE: Disable gravity for the subject. Hair strands should lift slightly. Detach shadows from the floor to show 20cm levitation.");
     }
 
-    return segments.length > 0 ? segments.join(" ") : "STANDARD_EYE_LEVEL_SCAN: Maintain original perspective with high-fidelity texture pass.";
+    const dolly = s.forward > 7 ? "CLOSE_UP: Tight framing on the face." : s.forward < 3 ? "WIDE_SHOT: Full upper body visible." : "";
+
+    return `[ENGINE_V6_SYNTHESIS] 
+${identityLock} 
+${optics} 
+${segments.join(" ")} 
+${dolly} 
+FINAL_TASK: Synthesize the image from this exact NEW camera coordinate while keeping the same person.`;
   }, []);
 
   const generatedPrompt = useMemo(() => buildCameraPrompt(state), [state, buildCameraPrompt]);
@@ -92,10 +72,6 @@ export const useCameraControls = () => {
     state,
     updateState,
     reset,
-    undo,
-    redo,
-    canUndo: past.length > 0,
-    canRedo: future.length > 0,
     generatedPrompt
   };
 };

@@ -28,6 +28,7 @@ export class GeminiService {
   ): Promise<{ imageUrl?: string; modelResponse?: string; groundingChunks?: GroundingChunk[] }> {
     let lastError: any;
     
+    // Create a new instance right before the call to ensure the latest API key is used
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const isPro = settings.quality === 'pro';
     const modelName = isPro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';

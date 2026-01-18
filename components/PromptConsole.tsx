@@ -1,18 +1,23 @@
 
 import React, { useState } from 'react';
+import { GroundingChunk } from '../types';
 
 interface Props {
   prompt: string;
   modelResponse?: string;
   isGenerating?: boolean;
+  groundingChunks?: GroundingChunk[];
 }
 
-export const PromptConsole: React.FC<Props> = ({ prompt, modelResponse, isGenerating }) => {
+export const PromptConsole: React.FC<Props> = ({ prompt, modelResponse, isGenerating, groundingChunks }) => {
   const [copied, setCopied] = useState(false);
 
   const copyToClipboard = async () => {
     try {
-      const textToCopy = modelResponse ? `${prompt}\n\nANALYSIS:\n${modelResponse}` : prompt;
+      let textToCopy = modelResponse ? `${prompt}\n\nANALYSIS:\n${modelResponse}` : prompt;
+      if (groundingChunks && groundingChunks.length > 0) {
+        textToCopy += "\n\nSOURCES:\n" + groundingChunks.map(c => c.web?.uri || c.maps?.uri).filter(Boolean).join('\n');
+      }
       await navigator.clipboard.writeText(textToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -40,7 +45,7 @@ export const PromptConsole: React.FC<Props> = ({ prompt, modelResponse, isGenera
             onClick={copyToClipboard}
             className="text-[9px] text-gray-500 hover:text-orange-400 transition-all uppercase font-black flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/5 active:scale-95"
           >
-            {copied ? 'Captured to Clipboard' : 'Export Logs'}
+            {copied ? 'Captured' : 'Export Logs'}
           </button>
         )}
       </div>
@@ -66,6 +71,25 @@ export const PromptConsole: React.FC<Props> = ({ prompt, modelResponse, isGenera
               </div>
             </div>
           </div>
+
+          {groundingChunks && groundingChunks.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Web Grounding</p>
+              <div className="space-y-1 overflow-y-auto max-h-[80px] custom-scrollbar">
+                {groundingChunks.map((chunk, idx) => (
+                  <a 
+                    key={idx} 
+                    href={chunk.web?.uri || chunk.maps?.uri} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="block text-[7px] text-blue-400 hover:text-blue-300 truncate underline"
+                  >
+                    {chunk.web?.title || chunk.maps?.uri || 'Source Link'}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-6 leading-relaxed overflow-y-auto max-h-[160px] pr-4 custom-scrollbar select-text">

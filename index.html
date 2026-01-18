@@ -3,9 +3,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#050505" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="description" content="QwenCam Studio - Professional AI-powered Camera Angle and Perspective Editor" />
-    <title>QwenCam Studio | AI Camera Angle Studio</title>
+    <title>QwenCam Studio | Adaptive AI Camera Angle Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,8 +18,10 @@
         padding: 0;
         height: 100%;
         overflow: hidden;
-        background-color: #020202;
+        background-color: #050505;
         font-family: 'Inter', sans-serif;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
       }
       .custom-scrollbar::-webkit-scrollbar {
         width: 4px;
@@ -38,6 +42,34 @@
       }
       .animate-progress {
         animation: progress 2s infinite linear;
+      }
+      input[type=range] {
+        -webkit-appearance: none;
+        background: transparent;
+      }
+      input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 24px;
+        width: 24px;
+        border-radius: 50%;
+        background: #ea580c;
+        cursor: pointer;
+        margin-top: -8px; 
+        box-shadow: 0 0 10px rgba(234, 88, 12, 0.5);
+      }
+      @media (min-width: 1024px) {
+        input[type=range]::-webkit-slider-thumb {
+          height: 16px;
+          width: 16px;
+          margin-top: -6px;
+        }
+      }
+      input[type=range]::-webkit-slider-runnable-track {
+        width: 100%;
+        height: 8px;
+        cursor: pointer;
+        background: #1f2937;
+        border-radius: 4px;
       }
     </style>
   <script type="importmap">

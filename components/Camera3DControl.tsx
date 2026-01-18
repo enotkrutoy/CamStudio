@@ -29,12 +29,10 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
   useEffect(() => { stateRef.current = state; }, [state]);
 
   const currentPresetLabel = useMemo(() => {
-    // Check if current state matches any preset, else "Custom View"
     const matched = PRESET_LIST.find(p => p.id === activePreset);
     return matched?.label || "Manual Sync";
-  }, [activePreset, state]);
+  }, [activePreset]);
 
-  // Texture Loader logic
   useEffect(() => {
     if (photoPlaneRef.current && sourceImage) {
       const loader = new THREE.TextureLoader();
@@ -53,11 +51,11 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     if (!containerRef.current) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050505);
+    scene.background = new THREE.Color(0x020202);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(35, containerRef.current.clientWidth / containerRef.current.clientHeight, 0.1, 1000);
-    camera.position.set(18, 15, 18);
+    camera.position.set(22, 18, 22);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
@@ -67,31 +65,38 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     containerRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Grid & Lighting
-    const grid = new THREE.GridHelper(40, 40, 0x1a1a1a, 0x0a0a0a);
+    const grid = new THREE.GridHelper(60, 60, 0x1a1a1a, 0x080808);
     scene.add(grid);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-    const spot = new THREE.SpotLight(0xff9900, 100, 100, 0.3);
-    spot.position.set(10, 20, 10);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    
+    const spot = new THREE.SpotLight(0xffaa00, 200, 100, 0.5);
+    spot.position.set(15, 30, 15);
+    spot.castShadow = true;
     scene.add(spot);
 
-    // Subject Plane
+    const blueSpot = new THREE.SpotLight(0x0088ff, 150, 100, 0.5);
+    blueSpot.position.set(-15, 10, -15);
+    scene.add(blueSpot);
+
     const photoMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
     const photoPlane = new THREE.Mesh(new THREE.PlaneGeometry(5, 7), photoMat);
     scene.add(photoPlane);
     photoPlaneRef.current = photoPlane;
 
-    // Virtual Camera Model
     const camGroup = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.9, 1.0), new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.2 }));
-    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.8, 32), new THREE.MeshStandardMaterial({ color: 0x050505 }));
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 1.2), new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.1 }));
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.0, 32), new THREE.MeshStandardMaterial({ color: 0x0a0a0a, metalness: 1, roughness: 0 }));
     lens.rotation.x = Math.PI / 2;
-    lens.position.z = 0.7;
-    camGroup.add(body, lens);
+    lens.position.z = 0.8;
     
-    // Frustum Visualizer
+    const focusRing = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.05, 16, 100), new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.5 }));
+    focusRing.rotation.x = Math.PI / 2;
+    focusRing.position.z = 1.2;
+    
+    camGroup.add(body, lens, focusRing);
+    
     const frustumGeo = new THREE.EdgesGeometry(new THREE.ConeGeometry(1, 4, 4));
-    const frustumMat = new THREE.LineBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.3 });
+    const frustumMat = new THREE.LineBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.2 });
     const frustum = new THREE.LineSegments(frustumGeo, frustumMat);
     frustum.rotation.x = -Math.PI / 2;
     frustum.position.z = 2.5;
@@ -101,9 +106,8 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     scene.add(camGroup);
     modelCameraRef.current = camGroup;
 
-    // Rotation Arc
     const rotGeo = new THREE.BufferGeometry();
-    const rotArc = new THREE.Line(rotGeo, new THREE.LineBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.15 }));
+    const rotArc = new THREE.Line(rotGeo, new THREE.LineBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.2 }));
     scene.add(rotArc);
     rotationArcRef.current = rotArc;
 
@@ -156,15 +160,14 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     if (!modelCameraRef.current || !photoPlaneRef.current) return;
 
     const angle = THREE.MathUtils.degToRad(state.rotate);
-    const dist = 11 - state.forward * 0.8;
-    const camY = state.tilt * 8;
+    const dist = 13 - state.forward * 1.0;
+    const camY = state.tilt * 9;
     
     modelCameraRef.current.position.set(Math.sin(angle) * dist, camY, Math.cos(angle) * dist);
     modelCameraRef.current.lookAt(0, state.floating ? 3 : 0, 0);
 
     photoPlaneRef.current.position.y = state.floating ? 3 : 0;
 
-    // Update Rotation Guideline
     const rotPoints = [];
     for(let i = -90; i <= 90; i+=2) {
       const a = THREE.MathUtils.degToRad(i);
@@ -173,37 +176,36 @@ export const Camera3DControl: React.FC<Props> = ({ state, sourceImage, onChange,
     rotationArcRef.current?.geometry.setFromPoints(rotPoints);
     if (rotationArcRef.current) rotationArcRef.current.position.y = camY;
 
-    // Adjust frustum based on wideAngle
     if (frustumRef.current) {
-      const scale = state.wideAngle ? 2.5 : 1.0;
+      const scale = state.wideAngle ? 3.0 : 1.2;
       frustumRef.current.scale.set(scale, scale, 1);
     }
   }, [state]);
 
   return (
-    <div className="relative w-full h-full bg-[#050505] rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl">
+    <div className="relative w-full h-full bg-[#020202] rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl">
       <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
       
       {sourceImage && (
         <button 
           onClick={onReplace}
-          className="absolute top-8 right-8 bg-black/60 hover:bg-black/90 backdrop-blur-2xl px-5 py-3 rounded-2xl border border-white/10 flex items-center gap-3 transition-all group z-10"
+          className="absolute top-8 right-8 bg-black/80 hover:bg-orange-600/20 backdrop-blur-2xl px-5 py-3 rounded-2xl border border-white/10 flex items-center gap-3 transition-all group z-10"
         >
           <div className="w-6 h-6 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
-          <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white">Change Scan</span>
+          <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white">Relocate Lens</span>
         </button>
       )}
 
       <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none">
-        <div className="bg-black/90 backdrop-blur-3xl px-8 py-3 rounded-full border border-orange-500/20 shadow-2xl flex items-center gap-5">
+        <div className="bg-black/95 backdrop-blur-3xl px-8 py-3 rounded-full border border-orange-500/20 shadow-2xl flex items-center gap-5">
           <div className="flex gap-1.5">
              <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
              <div className="w-1.5 h-1.5 rounded-full bg-orange-500/40" />
           </div>
           <span className="text-[10px] font-mono font-black text-white uppercase tracking-[0.3em]">
-            {currentPresetLabel} // {state.floating ? 'LEV_MOD_1' : 'GRND_LOK'}
+            {currentPresetLabel} // {state.floating ? 'FLIGHT_ACTIVE' : 'LOCKED_GRID'}
           </span>
         </div>
       </div>
