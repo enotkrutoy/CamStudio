@@ -12,59 +12,45 @@ export const DEFAULT_CAMERA_STATE: CameraControlState = {
 export const PRESET_LIST: PresetDefinition[] = [
   {
     id: 'default',
-    label: 'Стандарт',
-    icon: '📸',
-    description: 'Классический портретный ракурс на уровне глаз.',
+    label: 'Маркетплейс',
+    icon: '📦',
+    description: 'Стандартный вид спереди. Четкая форма и естественный свет.',
     state: DEFAULT_CAMERA_STATE
   },
   {
-    id: 'birdseye',
-    label: 'Вид сверху',
-    icon: '🦅',
-    description: 'Высокая точка съемки, подчеркивающая геометрию сцены.',
-    state: { rotate: 0, forward: 2, tilt: 0.9, wideAngle: true, floating: false }
-  },
-  {
-    id: 'cinematic-zoom',
-    label: 'Кино-зум',
-    icon: '🎬',
-    description: 'Эффект раздвигающегося пространства (Dolly Zoom).',
-    state: { rotate: 0, forward: 7, tilt: 0, wideAngle: true, floating: false }
-  },
-  {
-    id: 'dutch',
-    label: 'Голландский угол',
-    icon: '📐',
-    description: 'Драматический наклон камеры для создания напряжения.',
-    state: { rotate: 15, forward: 3, tilt: -0.2, wideAngle: false, floating: false }
-  },
-  {
-    id: 'macro',
-    label: 'Макро',
-    icon: '🔍',
-    description: 'Экстремальное приближение к деталям лица.',
-    state: { rotate: 0, forward: 8.5, tilt: 0, wideAngle: false, floating: false }
-  },
-  {
-    id: 'low-angle',
-    label: 'Героический',
-    icon: '🛡️',
-    description: 'Снизу вверх. Придает субъекту величие и доминирование.',
-    state: { rotate: 0, forward: 4, tilt: -0.8, wideAngle: true, floating: false }
-  },
-  {
     id: 'wide-orbit',
-    label: 'Орбитальный',
-    icon: '🔄',
-    description: 'Динамичный облет с широким охватом пространства.',
-    state: { rotate: 45, forward: 1, tilt: 0.3, wideAngle: true, floating: false }
+    label: 'Вид 3/4',
+    icon: '📐',
+    description: 'Классический объемный ракурс для демонстрации формы.',
+    state: { rotate: 45, forward: 3, tilt: 0.1, wideAngle: false, floating: false }
   },
   {
     id: 'top-down',
-    label: 'Зенит',
+    label: 'Флэтлэй',
     icon: '📍',
-    description: 'Строго вертикальный взгляд вниз.',
+    description: 'Вид строго сверху для каталога или лайфстайл-съемки.',
     state: { rotate: 0, forward: 0, tilt: 1, wideAngle: true, floating: false }
+  },
+  {
+    id: 'macro',
+    label: 'Детали',
+    icon: '🔍',
+    description: 'Макро-съемка текстур, швов или материалов.',
+    state: { rotate: 0, forward: 9, tilt: 0, wideAngle: false, floating: false }
+  },
+  {
+    id: 'low-angle',
+    label: 'Динамика',
+    icon: '🚀',
+    description: 'Ракурс снизу вверх для обуви или статусных аксессуаров.',
+    state: { rotate: 0, forward: 5, tilt: -0.8, wideAngle: true, floating: false }
+  },
+  {
+    id: 'cinematic-zoom',
+    label: 'Портрет',
+    icon: '📱',
+    description: 'Имитация портретного режима iPhone с мягким размытием.',
+    state: { rotate: 0, forward: 6, tilt: 0, wideAngle: false, floating: false }
   }
 ];
 
@@ -78,7 +64,7 @@ export const DEFAULT_SETTINGS: GenerationSettings = {
   steps: 4,
   quality: 'flash',
   imageSize: '1K',
-  creativeContext: '',
+  creativeContext: 'iPhone 15 Pro, natural daylight, photorealistic, 4k, retail photography',
 };
 
 export const ROTATE_LIMITS = { min: -90, max: 90 };

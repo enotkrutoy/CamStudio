@@ -5,15 +5,24 @@ import { ImageData, GenerationSettings, GroundingChunk } from "../types";
 const MAX_RETRIES = 2;
 const INITIAL_BACKOFF = 2000;
 
-const SYSTEM_INSTRUCTION = `You are a high-end spatial intelligence and image synthesis engine. 
-YOUR PRIMARY GOAL: Generate a NEW image based on the source image and provided camera telemetry.
+const SYSTEM_INSTRUCTION = `You are the QwenCam Identity Preservation Engine V6.
+MISSION: Re-render the provided object from a NEW spatial perspective with mathematical precision.
 
-CRITICAL CONSTRAINTS:
-1. OUTPUT: You must synthesize the image first.
-2. IDENTITY: Maintain the exact face structure, skin texture, and eye color. The person must be 100% recognizable.
-3. OPTICS: Apply realistic lens effects (e.g., edge distortion for 14mm, compression for 85mm).
-4. ANALYSIS (RU): Provide a very brief technical analysis of the new perspective AFTER the image generation or as a separate part.
-5. FORMAT: Strictly 1:1 aspect ratio.`;
+PHASE 0: ANALYSIS
+- Detect the core subject, its material properties, and specific branding/textures.
+
+PHASE 1: IDENTITY LOCK (CRITICAL)
+- 100% Biometric/Material consistency. 
+- Do NOT change the product's shape, labels, scratches, or wear-and-tear.
+- Preservation of original color palette and saturation levels.
+
+PHASE 2: SPATIAL TRANSFORMATION
+- Apply specific camera movement: ORBIT, DOLLY, or TILT.
+- Adjust lighting dynamically to match the new perspective (ray-tracing simulation).
+
+PHASE 3: OPTICS
+- Mimic high-end smartphone lenses (iPhone 16 Pro). 
+- Natural depth of field, subtle grain, no "AI-gloss".`;
 
 export class GeminiService {
   private async sleep(ms: number) {
@@ -28,7 +37,7 @@ export class GeminiService {
   ): Promise<{ imageUrl?: string; modelResponse?: string; groundingChunks?: GroundingChunk[] }> {
     let lastError: any;
     
-    // Create a new instance right before the call to ensure the latest API key is used
+    // Create fresh instance for latest API Key
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const isPro = settings.quality === 'pro';
     const modelName = isPro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
@@ -43,12 +52,12 @@ export class GeminiService {
         };
 
         const textPart = {
-          text: `[RENDER_COMMAND]
-SOURCE_LOCK: TRUE
-CAMERA_TELEMETRY: ${cameraPrompt}
+          text: `[ENGINE_TASK_SYNC]
+SPATIAL_TELEMETRY: ${cameraPrompt}
 SEED: ${settings.seed}
-STYLE_BIAS: ${settings.creativeContext || "Professional Studio Photography"}
-EXECUTION: SYNTHESIZE_NOW`
+LENS: Smartphone Main (24mm equiv.)
+ENVIRONMENT: ${settings.creativeContext || "Professional marketplace studio, neutral daylight"}
+IDENTITY_PRESERVATION: LOCK_ACTIVE`
         };
 
         const config: any = {
